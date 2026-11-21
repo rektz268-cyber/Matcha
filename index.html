@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matcha — HQ Video Patcher</title>
+  <style>
+    :root {
+      --bg: #0c100e;
+      --card: #131a16;
+      --border: #233129;
+      --matcha: #4ade80;
+      --matcha-dark: #16a34a;
+      --matcha-glow: rgba(74, 222, 128, 0.14);
+      --text: #ecf3ee;
+      --muted: #8fa396;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body {
+      background: radial-gradient(circle at top, #15221b 0%, var(--bg) 60%);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--matcha);
+      background: var(--matcha-glow);
+      border: 1px solid rgba(74, 222, 128, 0.28);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    p.sub {
+      margin: 0 0 20px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .dropzone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px 16px;
+      background: #0e1411;
+      border: 1.5px dashed #2e4237;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 16px;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--matcha);
+      background: #121c17;
+    }
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .dropzone-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .dropzone-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
+      color: #06210f;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active:not(:disabled) { transform: scale(0.99); }
+    button:disabled {
+      background: #1f2b24;
+      color: #5d7064;
+      cursor: not-allowed;
+    }
+    pre {
+      margin: 16px 0 0;
+      padding: 12px 14px;
+      background: #090d0b;
+      border: 1px solid #1b2620;
+      border-radius: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #86efac;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 76px;
+    }
+    .footer {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 11px;
+      color: #5c7063;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">● Client-Side Engine</div>
+    <h1>Matcha HQ Patcher</h1>
+    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload tanpa kompresi ulang. Diproses 100% langsung di browser.</p>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="video/mp4" />
+      <div class="dropzone-title" id="fileLabel">Pilih atau tarik file MP4 ke sini</div>
+      <div class="dropzone-hint">Wajib MP4 dengan 1 track video + 1 track audio</div>
+    </div>
+
+    <button id="runBtn" disabled>Proses Video dengan Matcha</button>
+    <pre id="log">Menunggu file MP4...</pre>
+    <div class="footer">Matcha Container Patcher • Stream-Copy Safe</div>
+  </div>
+
+  <script>
+    const enc = new TextEncoder();
+
+    function u32(val) {
+      const b = new Uint8Array(4);
+      new DataView(b.buffer).setUint32(0, val >>> 0, false);
+      return b;
+    }
+
+    function strBytes(str) {
+      return enc.encode(str);
+    }
+
+    function hexToBytes(hex) {
+      const out = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < out.length; i++) {
+        out[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      return out;
+    }
+
+    function concatBytes(arrays) {
+      let total = 0;
+      for (const a of arrays) total += a.length;
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const a of arrays) {
+        out.set(a, offset);
+        offset += a.length;
+      }
+      return out;
+    }
+
+    function box(type, payload) {
+      return concatBytes([u32(8 + payload.length), strBytes(type), payload]);
+    }
+
+    function fullbox(type, ver, flags, payload) {
+      const vf = ((ver & 0xff) << 24) | (flags & 0xffffff);
+      return box(type, concatBytes([u32(vf), payload]));
+    }
+
+    function parseBoxes(buf, start = 0, end = buf.length) {
+      const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const list = [];
+      let pos = start;
+      while (pos + 8 <= end) {
+        let size = view.getUint32(pos, false);
+        const type = String.fromCharCode(buf[pos + 4], buf[pos + 5], buf[pos + 6], buf[pos + 7]);
+        let hdr = 8;
+        if (size === 1) {
+          if (pos + 16 > end) break;
+          size = Number(view.getBigUint64(pos + 8, false));
+          hdr = 16;
+        } else if (size === 0) {
+          size = end - pos;
+        }
+        if (size < hdr || pos + size > end) break;
+        list.push({ type, pos, hdr, size });
+        pos += size;
+      }
+      return list;
+    }
+
+    function getTrakMdhdMs(trakBytes) {
+      for (const b of parseBoxes(trakBytes, 8)) {
+        if (b.type === "mdia") {
+          const mdia = trakBytes.subarray(b.pos, b.pos + b.size);
+          for (const mb of parseBoxes(mdia, 8)) {
+            if (mb.type === "mdhd") {
+              const c = mdia.subarray(mb.pos, mb.pos + mb.size);
+              const v = new DataView(c.buffer, c.byteOffset, c.byteLength);
+              const ver = c[mb.hdr];
+              const ts = ver === 0 ? v.getUint32(mb.hdr + 12, false) : v.getUint32(mb.hdr + 20, false);
+              const dur = ver === 0 ? v.getUint32(mb.hdr + 16, false) : Number(v.getBigUint64(mb.hdr + 24, false));
+              return Math.max(1, Math.round((dur / Math.max(1, ts)) * 1000));
+            }
+          }
+        }
+      }
+      return 18000;
+    }
+
+    function extractTrackSamples(raw, trakBytes) {
+      for (const b of parseBoxes(trakBytes, 8)) {
+        if (b.type !== "mdia") continue;
+        const mdia = trakBytes.subarray(b.pos, b.pos + b.size);
+        for (const mb of parseBoxes(mdia, 8)) {
+          if (mb.type !== "minf") continue;
+          const minf = mdia.subarray(mb.pos, mb.pos + mb.size);
+          for (const nb of parseBoxes(minf, 8)) {
+            if (nb.type !== "stbl") continue;
+            const stbl = minf.subarray(nb.pos, nb.pos + nb.size);
+            let stsz = null, stsc = null, stco = null, co64 = null;
+            for (const sb of parseBoxes(stbl, 8)) {
+              const chunk = stbl.subarray(sb.pos, sb.pos + sb.size);
+              if (sb.type === "stsz") stsz = chunk;
+              else if (sb.type === "stsc") stsc = chunk;
+              else if (sb.type === "stco") stco = chunk;
+              else if (sb.type === "co64") co64 = chunk;
+            }
+            if (!stsz || !stsc || (!stco && !co64)) return [];
+
+            const szView = new DataView(stsz.buffer, stsz.byteOffset, stsz.byteLength);
+            const uniSz = szView.getUint32(12, false);
+            const smpCnt = szView.getUint32(16, false);
+            const sizes = new Array(smpCnt);
+            if (uniSz > 0) {
+              sizes.fill(uniSz);
+            } else {
+              for (let i = 0; i < smpCnt; i++) {
+                sizes[i] = szView.getUint32(20 + i * 4, false);
+              }
+            }
+
+            const scView = new DataView(stsc.buffer, stsc.byteOffset, stsc.byteLength);
+            const scCnt = scView.getUint32(12, false);
+            const scRows = [];
+            for (let i = 0; i < scCnt; i++) {
+              const base = 16 + i * 12;
+              scRows.push({
+                firstChunk: scView.getUint32(base, false),
+                samplesPerChunk: scView.getUint32(base + 4, false)
+              });
+            }
+
+            const chunks = [];
+            if (stco) {
+              const coView = new DataView(stco.buffer, stco.byteOffset, stco.byteLength);
+              const coCnt = coView.getUint32(12, false);
+              for (let i = 0; i < coCnt; i++) chunks.push(coView.getUint32(16 + i * 4, false));
+            } else {
+              const coView = new DataView(co64.buffer, co64.byteOffset, co64.byteLength);
+              const coCnt = coView.getUint32(12, false);
+              for (let i = 0; i < coCnt; i++) chunks.push(Number(coView.getBigUint64(16 + i * 8, false)));
+            }
+
+            const samples = [];
+            let sIdx = 0;
+            let scIdx = 0;
+            for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+              const cNum = cIdx + 1;
+              while (scIdx + 1 < scRows.length && scRows[scIdx + 1].firstChunk <= cNum) {
+                scIdx++;
+              }
+              const spc = scRows[scIdx].samplesPerChunk;
+              let cur = chunks[cIdx];
+              for (let k = 0; k < spc; k++) {
+                if (sIdx >= sizes.length) break;
+                const sz = sizes[sIdx];
+                samples.push(raw.subarray(cur, cur + sz));
+                cur += sz;
+                sIdx++;
+              }
+            }
+            return samples;
+          }
+        }
+      }
+      return [];
+    }
+
+    function patchEdts(edtsBytes, targetMs) {
+      const parts = [];
+      for (const b of parseBoxes(edtsBytes, 8)) {
+        const chunk = edtsBytes.slice(b.pos, b.pos + b.size);
+        if (b.type === "elst") {
+          const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+          const ver = chunk[b.hdr];
+          const cnt = view.getUint32(b.hdr + 4, false);
+          if (cnt >= 1) {
+            if (ver === 0) view.setUint32(b.hdr + 8, targetMs >>> 0, false);
+            else view.setBigUint64(b.hdr + 8, BigInt(targetMs), false);
+          }
+        }
+        parts.push(chunk);
+      }
+      return box("edts", concatBytes(parts));
+    }
+
+    function patchStbl(stblBytes, deltaOffset) {
+      const parts = [];
+      for (const b of parseBoxes(stblBytes, 8)) {
+        const chunk = stblBytes.slice(b.pos, b.pos + b.size);
+        const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        if (b.type === "stco") {
+          const count = view.getUint32(12, false);
+          for (let i = 0; i < count; i++) {
+            const off = 16 + i * 4;
+            view.setUint32(off, (view.getUint32(off, false) + deltaOffset) >>> 0, false);
+          }
+        } else if (b.type === "co64") {
+          const count = view.getUint32(12, false);
+          for (let i = 0; i < count; i++) {
+            const off = 16 + i * 8;
+            view.setBigUint64(off, view.getBigUint64(off, false) + BigInt(deltaOffset), false);
+          }
+        }
+        parts.push(chunk);
+      }
+      return box("stbl", concatBytes(parts));
+    }
+
+    function patchMinf(minfBytes, deltaOffset) {
+      const parts = [];
+      for (const b of parseBoxes(minfBytes, 8)) {
+        const slice = minfBytes.subarray(b.pos, b.pos + b.size);
+        parts.push(b.type === "stbl" ? patchStbl(slice, deltaOffset) : slice);
+      }
+      return box("minf", concatBytes(parts));
+    }
+
+    function patchMdia(mdiaBytes, deltaOffset) {
+      const parts = [];
+      for (const b of parseBoxes(mdiaBytes, 8)) {
+        const slice = mdiaBytes.subarray(b.pos, b.pos + b.size);
+        parts.push(b.type === "minf" ? patchMinf(slice, deltaOffset) : slice);
+      }
+      return box("mdia", concatBytes(parts));
+    }
+
+    function patchTrak(trakBytes, newTrackId, altGroup, deltaOffset, targetMs) {
+      const parts = [];
+      for (const b of parseBoxes(trakBytes, 8)) {
+        const chunk = trakBytes.slice(b.pos, b.pos + b.size);
+        const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        if (b.type === "tkhd") {
+          const ver = chunk[b.hdr];
+          if (ver === 0) {
+            view.setUint32(b.hdr + 12, newTrackId, false);
+            view.setUint32(b.hdr + 20, targetMs >>> 0, false);
+            view.setUint16(b.hdr + 34, altGroup, false);
+          } else {
+            view.setUint32(b.hdr + 20, newTrackId, false);
+            view.setBigUint64(b.hdr + 28, BigInt(targetMs), false);
+            view.setUint16(b.hdr + 46, altGroup, false);
+          }
+          parts.push(chunk);
+        } else if (b.type === "edts") {
+          parts.push(patchEdts(chunk, targetMs));
+        } else if (b.type === "mdia") {
+          parts.push(patchMdia(chunk, deltaOffset));
+        } else {
+          parts.push(chunk);
+        }
+      }
+      return box("trak", concatBytes(parts));
+    }
+
+    const STSD_TRAK3_DUAL = hexToBytes(
+      "000000ef737473640000000000000002" +
+      "0000006e6d703461000000000000000100000000000000000002001000000000bb800000" +
+      "0000003665736473000000000380808025000300048080801740150000000003b83b0003b83b0580808005119056e500068080800102" +
+      "0000001462747274000000000003b83b0003b83b" +
+      "000000716d703461000000000000000100000000000000000002001000000000bb800000" +
+      "0000003965736473000000000380808028000300048080801a40150000000003b83b0003b83b0580808008118004c040002000068080800102" +
+      "0000001462747274000000000003b83b0003b83b"
+    );
+
+    const STSD_TRAK4_SINGLE = hexToBytes(
+      "0000007e737473640000000000000001" +
+      "0000006e6d703461000000000000000100000000000000000002001000000000bb800000" +
+      "0000003665736473000000000380808025000300048080801740150000000003b83b0003b83b0580808005119056e500068080800102" +
+      "0000001462747274000000000003b83b0003b83b"
+    );
+
+    function buildInjectedAacTrak(trackId, durMs, numFrames, frameSizes, chunkOffset, doubleMp4a) {
+      const tkhdPayload = new Uint8Array(80);
+      const tv = new DataView(tkhdPayload.buffer);
+      tv.setUint32(8, trackId, false);
+      tv.setUint32(16, durMs, false);
+      tv.setUint16(30, 2, false);
+      tv.setUint16(32, 0x0100, false);
+      tv.setUint32(36, 0x00010000, false);
+      tv.setUint32(52, 0x00010000, false);
+      tv.setUint32(68, 0x40000000, false);
+      const tkhd = fullbox("tkhd", 0, 3, tkhdPayload);
+
+      const elstPayload = new Uint8Array(16);
+      const ev = new DataView(elstPayload.buffer);
+      ev.setUint32(0, 1, false);
+      ev.setUint32(4, Math.max(1, durMs - 1), false);
+      ev.setInt32(8, 1024, false);
+      ev.setInt16(12, 1, false);
+      const edts = box("edts", fullbox("elst", 0, 0, elstPayload));
+
+      const mdhdPayload = new Uint8Array(20);
+      const mv = new DataView(mdhdPayload.buffer);
+      mv.setUint32(8, 48000, false);
+      mv.setUint32(12, numFrames * 1024, false);
+      mv.setUint16(16, 0x55C4, false);
+      const mdhd = fullbox("mdhd", 0, 0, mdhdPayload);
+
+      const hdlr = fullbox("hdlr", 0, 0, concatBytes([u32(0), strBytes("soun"), new Uint8Array(12), strBytes("SoundHandler\0")]));
+      const smhd = fullbox("smhd", 0, 0, new Uint8Array(4));
+      const dref = fullbox("dref", 0, 0, concatBytes([u32(1), fullbox("url ", 0, 1, new Uint8Array(0))]));
+      const dinf = box("dinf", dref);
+
+      const stsd = doubleMp4a ? STSD_TRAK3_DUAL : STSD_TRAK4_SINGLE;
+      const stts = fullbox("stts", 0, 0, concatBytes([u32(1), u32(numFrames), u32(1024)]));
+      const stsc = fullbox("stsc", 0, 0, concatBytes([u32(1), u32(1), u32(numFrames), u32(1)]));
+
+      const stszPayload = new Uint8Array(8 + numFrames * 4);
+      const szv = new DataView(stszPayload.buffer);
+      szv.setUint32(4, numFrames, false);
+      for (let i = 0; i < numFrames; i++) {
+        szv.setUint32(8 + i * 4, frameSizes[i], false);
+      }
+      const stsz = fullbox("stsz", 0, 0, stszPayload);
+
+      const stco = fullbox("stco", 0, 0, concatBytes([u32(1), u32(chunkOffset)]));
+
+      const sgpdPayload = new Uint8Array(14);
+      const sgv = new DataView(sgpdPayload.buffer);
+      sgpdPayload.set(strBytes("roll"), 0);
+      sgv.setUint32(4, 2, false);
+      sgv.setUint32(8, 1, false);
+      sgv.setInt16(12, -1, false);
+      const sgpd = fullbox("sgpd", 1, 0, sgpdPayload);
+
+      const sbgp = fullbox("sbgp", 0, 0, concatBytes([strBytes("roll"), u32(1), u32(numFrames), u32(1)]));
+
+      const stbl = box("stbl", concatBytes([stsd, stts, stsc, stsz, stco, sgpd, sbgp]));
+      const minf = box("minf", concatBytes([smhd, dinf, stbl]));
+      const mdia = box("mdia", concatBytes([mdhd, hdlr, minf]));
+      return box("trak", concatBytes([tkhd, edts, mdia]));
+    }
+
+    async function sha256Hex(bytes) {
+      if (window.crypto && window.crypto.subtle) {
+        const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
+        return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
+      return "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+    }
+
+    async function buildUdtaMeta(seedBytes) {
+      const hdlr = fullbox("hdlr", 0, 0, concatBytes([u32(0), strBytes("mdta"), new Uint8Array(13)]));
+      const keyNames = [
+        "major_brand", "minor_version", "compatible_brands",
+        "te_is_reencode", "artist", "comment", "copyright", "encoder"
+      ];
+      const keyEntries = keyNames.map(k => concatBytes([u32(8 + k.length), strBytes("mdta"), strBytes(k)]));
+      const keys = fullbox("keys", 0, 0, concatBytes([u32(keyNames.length), ...keyEntries]));
+
+      const sigHash = await sha256Hex(seedBytes);
+      const items = [
+        [1, strBytes("isom")],
+        [1, strBytes("512")],
+        [1, strBytes("isomiso2mp41")],
+        [1, strBytes("1")],
+        [1, strBytes("Matcha")],
+        [1, strBytes("Patched by Matcha")],
+        [1, strBytes(sigHash)],
+        [1, strBytes("Lavf59.27.100")]
+      ];
+
+      const ilstParts = items.map(([dtype, val], i) => {
+        const dataBox = box("data", concatBytes([u32(dtype), u32(0), val]));
+        return box(String.fromCharCode(0, 0, 0, i + 1), dataBox);
+      });
+      const ilst = box("ilst", concatBytes(ilstParts));
+      const meta = fullbox("meta", 0, 0, concatBytes([hdlr, keys, ilst]));
+      return box("udta", meta);
+    }
+
+    async function patchMatchaMP4(arrayBuffer) {
+      const raw = new Uint8Array(arrayBuffer);
+      const top = parseBoxes(raw);
+      const moovInfo = top.find(b => b.type === "moov");
+      const mdatInfo = top.find(b => b.type === "mdat");
+      if (!moovInfo || !mdatInfo) throw new Error("Atom moov atau mdat tidak ditemukan.");
+
+      const moovBytes = raw.subarray(moovInfo.pos, moovInfo.pos + moovInfo.size);
+      const origMdatPayloadStart = mdatInfo.pos + mdatInfo.hdr;
+      const origMdatPayload = raw.subarray(origMdatPayloadStart, mdatInfo.pos + mdatInfo.size);
+
+      const origTraks = parseBoxes(moovBytes, 8)
+        .filter(b => b.type === "trak")
+        .map(b => moovBytes.subarray(b.pos, b.pos + b.size));
+
+      if (origTraks.length < 2) {
+        throw new Error("Video wajib memiliki minimal 1 track video dan 1 track audio.");
+      }
+
+      const trakMsList = origTraks.map(getTrakMdhdMs);
+      const vidDurMs = trakMsList[0];
+      const matchaDurMs = vidDurMs + 370;
+
+      const realAudioSamples = extractTrackSamples(raw, origTraks[1]);
+      if (!realAudioSamples.length) {
+        throw new Error("Gagal mengekstrak stream audio asli.");
+      }
+
+      const targetFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
+      const padFrames = Math.max(1, targetFrames - realAudioSamples.length);
+      const silentAac = hexToBytes("211004608c1c");
+      const allAacSamples = [...realAudioSamples];
+      for (let i = 0; i < padFrames; i++) allAacSamples.push(silentAac);
+
+      const aacPayload = concatBytes(allAacSamples);
+      const aacSizes = allAacSamples.map(s => s.length);
+      const numAacFrames = allAacSamples.length;
+
+      const ftypBox = box("ftyp", concatBytes([strBytes("isom"), u32(512), strBytes("isomiso2mp41")]));
+      const udtaBox = await buildUdtaMeta(raw.subarray(0, Math.min(4096, raw.length)));
+
+      const mvhdPayload = new Uint8Array(96);
+      const mv = new DataView(mvhdPayload.buffer);
+      mv.setUint32(8, 1000, false);
+      mv.setUint32(12, matchaDurMs, false);
+      mv.setUint32(16, 0x00010000, false);
+      mv.setUint16(20, 0x0100, false);
+      mv.setUint32(32, 0x00010000, false);
+      mv.setUint32(48, 0x00010000, false);
+      mv.setUint32(64, 0x40000000, false);
+      const mvhdBox = fullbox("mvhd", 0, 0, mvhdPayload);
+
+      const assembleMoov = (delta, aacOffset) => {
+        const patchedOrig = origTraks.map((tr, idx) => patchTrak(tr, idx + 1, idx === 0 ? 0 : 1, delta, trakMsList[idx]));
+        const nextId = patchedOrig.length + 1;
+        const trak3 = buildInjectedAacTrak(nextId, matchaDurMs, numAacFrames, aacSizes, aacOffset, true);
+        const trak4 = buildInjectedAacTrak(nextId + 1, matchaDurMs, numAacFrames, aacSizes, aacOffset, false);
+        return box("moov", concatBytes([mvhdBox, ...patchedOrig, trak3, trak4, udtaBox]));
+      };
+
+      const dummyMoov = assembleMoov(0, 0);
+      const newMdat1PayloadStart = ftypBox.length + dummyMoov.length + 8;
+      const delta = newMdat1PayloadStart - origMdatPayloadStart;
+      const aacChunkOffset = newMdat1PayloadStart + origMdatPayload.length;
+      const finalMoov = assembleMoov(delta, aacChunkOffset);
+
+      const mdat1 = box("mdat", concatBytes([origMdatPayload, aacPayload]));
+      const mdat2 = box("mdat", hexToBytes("211004608c1c".repeat(17)));
+
+      return {
+        blob: new Blob([ftypBox, finalMoov, mdat1, mdat2], { type: "video/mp4" }),
+        vidDurMs,
+        matchaDurMs,
+        numAacFrames
+      };
+    }
+
+    const fileInput = document.getElementById("fileInput");
+    const fileLabel = document.getElementById("fileLabel");
+    const dropzone = document.getElementById("dropzone");
+    const runBtn = document.getElementById("runBtn");
+    const log = document.getElementById("log");
+
+    function updateFileUI() {
+      if (fileInput.files.length) {
+        const f = fileInput.files[0];
+        fileLabel.textContent = f.name;
+        runBtn.disabled = false;
+        log.textContent = `Siap diproses: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
+      } else {
+        fileLabel.textContent = "Pilih atau tarik file MP4 ke sini";
+        runBtn.disabled = true;
+      }
+    }
+
+    fileInput.addEventListener("change", updateFileUI);
+    dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        updateFileUI();
+      }
+    });
+
+    runBtn.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      runBtn.disabled = true;
+      log.textContent = "Memproses struktur container Matcha...";
+      try {
+        const buf = await file.arrayBuffer();
+        const res = await patchMatchaMP4(buf);
+        const outName = file.name.replace(/\.mp4$/i, "") + "_matcha.mp4";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(res.blob);
+        a.download = outName;
+        a.click();
+        log.textContent =
+          `[OK] Selesai dipatch oleh Matcha!\n` +
+          `Output  : ${outName}\n` +
+          `Durasi  : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
+          `Audio   : Cloned (${res.numAacFrames} frames) + Dual-mp4a`;
+      } catch (err) {
+        log.textContent = `[ERROR] ${err.message}`;
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
