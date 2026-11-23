@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matcha — Termux Command Builder</title>
+  <title>Matcha — HD Photo Upscaler</title>
   <style>
     :root {
       --bg: #0c100e;
@@ -13,7 +13,6 @@
       --matcha: #4ade80;
       --matcha-dark: #16a34a;
       --matcha-glow: rgba(74, 222, 128, 0.14);
-      --danger: #f87171;
       --text: #ecf3ee;
       --muted: #8fa396;
     }
@@ -23,14 +22,14 @@
       color: var(--text);
       margin: 0;
       min-height: 100vh;
-      padding: 20px 14px 32px;
+      padding: 20px 14px 36px;
       display: flex;
       align-items: flex-start;
       justify-content: center;
     }
     .card {
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 18px;
@@ -64,130 +63,119 @@
       line-height: 1.45;
       color: var(--muted);
     }
-    .tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
+    .dropzone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 22px 14px;
       background: var(--panel);
-      padding: 5px;
+      border: 1.5px dashed #2e4237;
       border-radius: 12px;
-      border: 1px solid var(--border);
-      margin-bottom: 18px;
-    }
-    .tab-btn {
-      padding: 10px 8px;
-      border: none;
-      border-radius: 9px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
       cursor: pointer;
-      transition: all 0.18s ease;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 14px;
     }
-    .tab-btn.active {
-      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
-      color: #05200e;
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--matcha);
+      background: #121c17;
     }
-    .section { display: none; }
-    .section.active { display: block; }
-    .field { margin-bottom: 14px; }
-    label {
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .dropzone-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .dropzone-hint {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .res-bar {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      background: #0a0f0c;
+      border: 1px solid #1e2b23;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 12px;
+      margin-bottom: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .res-bar.visible { display: flex; }
+    .res-bar span.arrow { color: var(--matcha); font-weight: 700; }
+
+    .section-label {
       display: block;
       font-size: 12px;
       font-weight: 600;
       color: #c5d6cb;
       margin-bottom: 6px;
     }
-    input[type="text"], select {
-      width: 100%;
-      padding: 11px 12px;
-      background: var(--panel);
-      border: 1px solid #28382f;
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.18s;
-    }
-    input[type="text"]:focus, select:focus {
-      border-color: var(--matcha);
-    }
-    .clip-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .clip-row {
+    .pill-group {
       display: grid;
-      grid-template-columns: 1fr 1fr 36px;
-      gap: 8px;
-      align-items: center;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
     }
-    .clip-row input {
-      text-align: center;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    .pill-group.two {
+      grid-template-columns: 1fr 1fr;
     }
-    .del-btn {
-      height: 39px;
-      border: 1px solid #382424;
-      background: #1c1111;
-      color: var(--danger);
+    .pill {
+      padding: 9px 6px;
+      background: var(--panel);
+      border: 1px solid #26362d;
       border-radius: 9px;
-      font-size: 15px;
+      color: var(--muted);
+      font-size: 12px;
       font-weight: 700;
       cursor: pointer;
+      transition: all 0.16s ease;
     }
-    .del-btn:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-    .add-btn {
-      width: 100%;
-      padding: 9px;
-      background: #101914;
-      border: 1px dashed #2e4538;
-      border-radius: 10px;
+    .pill.active {
+      background: var(--matcha-glow);
+      border-color: var(--matcha);
       color: var(--matcha);
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
     }
-    .add-btn:hover { background: #14221a; }
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12.5px;
-      color: #c5d6cb;
+    .sliders {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
       margin-bottom: 14px;
-      cursor: pointer;
-      user-select: none;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
     }
-    .check-row input {
-      accent-color: var(--matcha);
-      width: 16px;
-      height: 16px;
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
-    .cmd-box {
-      background: #080c0a;
-      border: 1px solid #1d2b23;
-      border-radius: 11px;
-      padding: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    .slider-head {
+      display: flex;
+      justify-content: space-between;
       font-size: 12px;
-      line-height: 1.5;
-      color: #86efac;
-      white-space: pre-wrap;
-      word-break: break-all;
-      margin-bottom: 12px;
-      user-select: all;
+      color: #c5d6cb;
+    }
+    .slider-head span:last-child {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--matcha);
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--matcha);
+      cursor: pointer;
+      margin: 0;
     }
     .primary-btn {
       width: 100%;
@@ -201,319 +189,569 @@
       cursor: pointer;
       transition: transform 0.1s, opacity 0.15s;
     }
-    .primary-btn:active { transform: scale(0.99); }
-    .preset-desc {
+    .primary-btn:active:not(:disabled) { transform: scale(0.99); }
+    .primary-btn:disabled {
+      background: #1f2b24;
+      color: #5d7064;
+      cursor: not-allowed;
+    }
+    .status-text {
+      margin-top: 10px;
       font-size: 12px;
+      text-align: center;
       color: var(--muted);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      margin-bottom: 14px;
-      line-height: 1.45;
+      min-height: 18px;
     }
-    details.setup {
-      margin-top: 14px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color: var(--muted);
+
+    /* BEFORE / AFTER COMPARISON VIEWER */
+    .compare-wrap {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #1e2a23;
     }
-    details.setup summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: #b7ccbf;
+    .compare-wrap.visible { display: block; }
+    .compare-box {
+      position: relative;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #2a3b31;
+      background: #070a08;
+      touch-action: none;
+      user-select: none;
     }
-    details.setup code {
+    .compare-box img {
       display: block;
-      margin-top: 8px;
-      padding: 8px;
-      background: #080c0a;
-      border-radius: 7px;
-      color: #86efac;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 11.5px;
-      word-break: break-all;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+    .compare-before {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      width: 50%;
+    }
+    .compare-before img {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      object-fit: cover;
+    }
+    .compare-divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: var(--matcha);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+    }
+    .compare-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--matcha);
+      color: #05200e;
+      font-weight: 800;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+    .tag-label {
+      position: absolute;
+      top: 10px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: rgba(10, 15, 12, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      pointer-events: none;
+    }
+    .tag-before { left: 10px; color: #d1d5db; }
+    .tag-after { right: 10px; color: var(--matcha); }
+
+    .dl-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .dl-btn {
+      padding: 12px 10px;
+      border-radius: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1.5px solid var(--matcha);
+      background: #0d1310;
+      color: var(--text);
+      transition: background 0.18s;
+    }
+    .dl-btn:hover { background: #15241c; }
+    .dl-btn.solid {
+      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
+      color: #05200e;
+      border: none;
     }
     .footer {
       margin-top: 18px;
-      padding-top: 12px;
-      border-top: 1px solid #1b2620;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11.5px;
-      color: #677d70;
+      text-align: center;
+      font-size: 11px;
+      color: #5c7063;
     }
-    .footer a {
-      color: var(--matcha);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">● Termux Toolbox</div>
-    <h1>Matcha Command Builder</h1>
-    <p class="sub">Generator perintah yt-dlp clipper &amp; FFmpeg HQ siap salin untuk Termux Android.</p>
+    <div class="badge">● HD Image Engine</div>
+    <h1>Matcha Photo Upscaler</h1>
+    <p class="sub">Perbesar resolusi foto 2x–4x, pertajam detail buram, dan tingkatkan kejernihan warna langsung di browser.</p>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="yt">YT Clipper (yt-dlp)</button>
-      <button class="tab-btn" data-tab="ff">FFmpeg HQ Preset</button>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
+      <div class="dropzone-title" id="fileLabel">Pilih atau tarik foto ke sini</div>
+      <div class="dropzone-hint">Mendukung JPG, PNG, dan WEBP</div>
     </div>
 
-    <!-- TAB 1: YT CLIPPER -->
-    <div class="section active" id="tab-yt">
-      <div class="field">
-        <label for="ytUrl">Link Video YouTube</label>
-        <input type="text" id="ytUrl" placeholder="https://youtu.be/..." />
-      </div>
-
-      <div class="field">
-        <label>Potongan Timestamp (Mulai — Selesai)</label>
-        <div class="clip-list" id="clipList"></div>
-        <button type="button" class="add-btn" id="addClipBtn">+ Tambah Potongan Klip</button>
-      </div>
-
-      <div class="grid-2">
-        <div class="field">
-          <label for="ytQuality">Format &amp; Kualitas</label>
-          <select id="ytQuality">
-            <option value="mp4">Best MP4 (Siap CapCut/AM)</option>
-            <option value="raw">Max Raw (4K/2K VP9/AV1)</option>
-            <option value="vidonly">Video Only (Tanpa Audio)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="ytPrefix">Awalan Nama File</label>
-          <input type="text" id="ytPrefix" value="clip" placeholder="clip" />
-        </div>
-      </div>
-
-      <label class="check-row">
-        <input type="checkbox" id="ytKeyframe" checked />
-        <span>Potong presisi per frame (<code>--force-keyframes-at-cuts</code>)</span>
-      </label>
-
-      <label>Perintah Termux (Otomatis Terupdate)</label>
-      <div class="cmd-box" id="ytCmd"></div>
-      <button type="button" class="primary-btn" id="copyYtBtn">Salin Perintah yt-dlp</button>
-
-      <details class="setup">
-        <summary>Belum install yt-dlp / FFmpeg di Termux?</summary>
-        <code>pkg update -y && pkg install python ffmpeg -y && pip install -U yt-dlp && termux-setup-storage</code>
-      </details>
+    <div class="res-bar" id="resBar">
+      <span id="origRes">0 × 0</span>
+      <span class="arrow">→</span>
+      <span id="targetRes">0 × 0 px</span>
     </div>
 
-    <!-- TAB 2: FFMPEG HQ -->
-    <div class="section" id="tab-ff">
-      <div class="field">
-        <label for="ffPreset">Pilih Preset Render</label>
-        <select id="ffPreset">
-          <option value="2k_1080">2K ke 1080p Tajam (Lanczos + CAS Sharpen, CRF 18)</option>
-          <option value="crf14_orig">Ultra HD 60fps CFR (CRF 14 — Resolusi Asli)</option>
-          <option value="scale_1024">Scale 1024x1824 (CRF 14 — 60fps CFR)</option>
-          <option value="h264_1080">H.264 1080p 60fps (Kompatibel Semua Editor, CRF 16)</option>
-          <option value="copy_fast">Remux Cepat + Faststart (Tanpa Re-encode)</option>
-        </select>
-      </div>
-
-      <div class="preset-desc" id="ffDesc"></div>
-
-      <div class="grid-2">
-        <div class="field">
-          <label for="ffInput">File Input (/sdcard/Download/)</label>
-          <input type="text" id="ffInput" value="input.mp4" />
-        </div>
-        <div class="field">
-          <label for="ffOutput">File Output (/sdcard/Download/)</label>
-          <input type="text" id="ffOutput" value="input_hq.mp4" />
-        </div>
-      </div>
-
-      <label>Perintah FFmpeg Termux</label>
-      <div class="cmd-box" id="ffCmd"></div>
-      <button type="button" class="primary-btn" id="copyFfBtn">Salin Perintah FFmpeg</button>
+    <span class="section-label">Skala Upscale</span>
+    <div class="pill-group two" id="scaleGroup">
+      <button type="button" class="pill active" data-scale="2">2x HD</button>
+      <button type="button" class="pill" data-scale="4">4x Ultra HD</button>
     </div>
 
-    <div class="footer">
-      <span>Output: /sdcard/Download</span>
-      <a href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">TikTok Studio Web ↗</a>
+    <span class="section-label">Mode Preset</span>
+    <div class="pill-group" id="presetGroup">
+      <button type="button" class="pill active" data-preset="natural">Natural HD</button>
+      <button type="button" class="pill" data-preset="crisp">Anime / Tajam</button>
+      <button type="button" class="pill" data-preset="portrait">Potret Halus</button>
     </div>
+
+    <div class="sliders">
+      <div class="slider-row">
+        <div class="slider-head">
+          <span>Ketajaman (Unsharp Mask)</span>
+          <span id="valSharp">55%</span>
+        </div>
+        <input type="range" id="inSharp" min="0" max="100" value="55" />
+      </div>
+      <div class="slider-row">
+        <div class="slider-head">
+          <span>Detail &amp; Clarity</span>
+          <span id="valClarity">30%</span>
+        </div>
+        <input type="range" id="inClarity" min="0" max="100" value="30" />
+      </div>
+      <div class="slider-row">
+        <div class="slider-head">
+          <span>Kejernihan Warna (Vibrance)</span>
+          <span id="valVibrance">15%</span>
+        </div>
+        <input type="range" id="inVibrance" min="0" max="60" value="15" />
+      </div>
+    </div>
+
+    <button type="button" class="primary-btn" id="runBtn" disabled>HD-kan Foto Sekarang</button>
+    <div class="status-text" id="statusText">Pilih foto dari galeri untuk memulai.</div>
+
+    <div class="compare-wrap" id="compareWrap">
+      <span class="section-label">Geser untuk Bandingkan (Before / After)</span>
+      <div class="compare-box" id="compareBox">
+        <img id="imgAfter" alt="Hasil HD" />
+        <div class="compare-before" id="beforeClip">
+          <img id="imgBefore" alt="Foto Asli" />
+        </div>
+        <span class="tag-label tag-before">ASLI</span>
+        <span class="tag-label tag-after" id="afterTag">HD 2X</span>
+        <div class="compare-divider" id="compareLine"></div>
+        <div class="compare-handle" id="compareHandle">⇄</div>
+      </div>
+
+      <div class="dl-grid">
+        <button type="button" class="dl-btn solid" id="dlPngBtn">Unduh PNG (Lossless)</button>
+        <button type="button" class="dl-btn" id="dlJpgBtn">Unduh JPG (HQ 95%)</button>
+      </div>
+    </div>
+
+    <div class="footer">Matcha Client-Side Image Upscaler • 100% Privasi Lokal</div>
   </div>
 
   <script>
-    // Tab switcher
-    document.querySelectorAll(".tab-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-        btn.classList.add("active");
-        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-      });
-    });
+    const fileInput = document.getElementById("fileInput");
+    const dropzone = document.getElementById("dropzone");
+    const fileLabel = document.getElementById("fileLabel");
+    const resBar = document.getElementById("resBar");
+    const origResEl = document.getElementById("origRes");
+    const targetResEl = document.getElementById("targetRes");
+    const runBtn = document.getElementById("runBtn");
+    const statusText = document.getElementById("statusText");
 
-    // Clipboard helper with fallback
-    async function copyText(text, btn, defaultLabel) {
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(text);
-        } else {
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-        }
-        btn.textContent = "✓ Tersalin ke Clipboard!";
-        setTimeout(() => { btn.textContent = defaultLabel; }, 1600);
-      } catch (e) {
-        btn.textContent = "Gagal salin — tahan teks di atas";
-        setTimeout(() => { btn.textContent = defaultLabel; }, 2000);
-      }
-    }
+    const inSharp = document.getElementById("inSharp");
+    const inClarity = document.getElementById("inClarity");
+    const inVibrance = document.getElementById("inVibrance");
+    const valSharp = document.getElementById("valSharp");
+    const valClarity = document.getElementById("valClarity");
+    const valVibrance = document.getElementById("valVibrance");
 
-    // --- TAB 1: YT-DLP BUILDER ---
-    const clipList = document.getElementById("clipList");
-    const ytUrl = document.getElementById("ytUrl");
-    const ytQuality = document.getElementById("ytQuality");
-    const ytPrefix = document.getElementById("ytPrefix");
-    const ytKeyframe = document.getElementById("ytKeyframe");
-    const ytCmd = document.getElementById("ytCmd");
+    const compareWrap = document.getElementById("compareWrap");
+    const compareBox = document.getElementById("compareBox");
+    const beforeClip = document.getElementById("beforeClip");
+    const compareLine = document.getElementById("compareLine");
+    const compareHandle = document.getElementById("compareHandle");
+    const imgBefore = document.getElementById("imgBefore");
+    const imgAfter = document.getElementById("imgAfter");
+    const afterTag = document.getElementById("afterTag");
 
-    let clips = [{ start: "00:15", end: "00:28" }];
+    let loadedImage = null;
+    let baseFileName = "photo";
+    let selectedScale = 2;
+    let outputCanvas = null;
 
-    function renderClips() {
-      clipList.innerHTML = "";
-      clips.forEach((c, idx) => {
-        const row = document.createElement("div");
-        row.className = "clip-row";
-
-        const inStart = document.createElement("input");
-        inStart.type = "text";
-        inStart.placeholder = "00:00";
-        inStart.value = c.start;
-        inStart.addEventListener("input", e => { clips[idx].start = e.target.value; updateYtCmd(); });
-
-        const inEnd = document.createElement("input");
-        inEnd.type = "text";
-        inEnd.placeholder = "00:15";
-        inEnd.value = c.end;
-        inEnd.addEventListener("input", e => { clips[idx].end = e.target.value; updateYtCmd(); });
-
-        const delBtn = document.createElement("button");
-        delBtn.type = "button";
-        delBtn.className = "del-btn";
-        delBtn.textContent = "×";
-        delBtn.disabled = clips.length === 1;
-        delBtn.addEventListener("click", () => {
-          clips.splice(idx, 1);
-          renderClips();
-          updateYtCmd();
-        });
-
-        row.append(inStart, inEnd, delBtn);
-        clipList.appendChild(row);
-      });
-    }
-
-    function updateYtCmd() {
-      const url = ytUrl.value.trim() || "https://youtu.be/LINK_VIDEO";
-      const prefix = (ytPrefix.value.trim() || "clip").replace(/[^a-zA-Z0-9_-]/g, "_");
-      const sections = clips
-        .filter(c => c.start.trim() && c.end.trim())
-        .map(c => `--download-sections "*${c.start.trim()}-${c.end.trim()}"`)
-        .join(" ");
-
-      const kf = ytKeyframe.checked ? " --force-keyframes-at-cuts" : "";
-      let fmt = '-f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b" --merge-output-format mp4';
-      if (ytQuality.value === "raw") {
-        fmt = '-f "bv*+ba/b" --merge-output-format mkv';
-      } else if (ytQuality.value === "vidonly") {
-        fmt = '-f "bv*[ext=mp4]/bv*"';
-      }
-
-      const outTpl = `/sdcard/Download/${prefix}_%(autonumber)02d.%(ext)s`;
-      ytCmd.textContent = `yt-dlp ${sections || '--download-sections "*00:15-00:28"'}${kf} ${fmt} -o "${outTpl}" "${url}"`;
-    }
-
-    document.getElementById("addClipBtn").addEventListener("click", () => {
-      clips.push({ start: "", end: "" });
-      renderClips();
-      updateYtCmd();
-    });
-
-    [ytUrl, ytQuality, ytPrefix].forEach(el => el.addEventListener("input", updateYtCmd));
-    ytKeyframe.addEventListener("change", updateYtCmd);
-    document.getElementById("copyYtBtn").addEventListener("click", function () {
-      copyText(ytCmd.textContent, this, "Salin Perintah yt-dlp");
-    });
-
-    renderClips();
-    updateYtCmd();
-
-    // --- TAB 2: FFMPEG PRESETS ---
     const PRESETS = {
-      "2k_1080": {
-        desc: "Downscale 2K ke 1080x1920 dengan filter Lanczos + penajaman CAS 0.5, codec HEVC (hvc1) CRF 18, 60 FPS konstan.",
-        build: (inp, out) =>
-          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1080:1920:flags=lanczos,cas=0.5,setsar=1" -c:v libx265 -crf 18 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
-      },
-      "crf14_orig": {
-        desc: "Pertahankan resolusi asli video dengan bitrate tinggi HEVC (hvc1) CRF 14 dan frame rate terkunci di 60 FPS CFR.",
-        build: (inp, out) =>
-          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "setsar=1" -c:v libx265 -crf 14 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
-      },
-      "scale_1024": {
-        desc: "Skala 1024x1824 (rasio 9:16) memakai Lanczos dan HEVC CRF 14 pada 60 FPS CFR.",
-        build: (inp, out) =>
-          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1024:1824:flags=lanczos,setsar=1" -c:v libx265 -crf 14 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
-      },
-      "h264_1080": {
-        desc: "Render H.264 High Profile 1080x1920 60 FPS (paling ringan dibuka di CapCut & Alight Motion tanpa lag).",
-        build: (inp, out) =>
-          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1080:1920:flags=lanczos,setsar=1" -c:v libx264 -profile:v high -level 4.2 -crf 16 -preset medium -pix_fmt yuv420p -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
-      },
-      "copy_fast": {
-        desc: "Salin stream video & audio 100% asli tanpa kompresi ulang (-c copy) dan pindahkan header moov ke depan (+faststart).",
-        build: (inp, out) =>
-          `ffmpeg -y -i "/sdcard/Download/${inp}" -c copy -movflags +faststart "/sdcard/Download/${out}"`
-      }
+      natural: { sharp: 55, clarity: 30, vibrance: 15 },
+      crisp:   { sharp: 85, clarity: 50, vibrance: 25 },
+      portrait:{ sharp: 35, clarity: 15, vibrance: 12 }
     };
 
-    const ffPreset = document.getElementById("ffPreset");
-    const ffDesc = document.getElementById("ffDesc");
-    const ffInput = document.getElementById("ffInput");
-    const ffOutput = document.getElementById("ffOutput");
-    const ffCmd = document.getElementById("ffCmd");
-
-    function updateFfCmd() {
-      const p = PRESETS[ffPreset.value];
-      const inp = ffInput.value.trim() || "input.mp4";
-      const out = ffOutput.value.trim() || "input_hq.mp4";
-      ffDesc.textContent = p.desc;
-      ffCmd.textContent = p.build(inp, out);
+    function syncSliderLabels() {
+      valSharp.textContent = inSharp.value + "%";
+      valClarity.textContent = inClarity.value + "%";
+      valVibrance.textContent = inVibrance.value + "%";
     }
 
-    ffInput.addEventListener("input", () => {
-      const base = ffInput.value.trim().replace(/\.[^/.]+$/, "");
-      if (base) ffOutput.value = base + "_hq.mp4";
-      updateFfCmd();
-    });
-    ffPreset.addEventListener("change", updateFfCmd);
-    ffOutput.addEventListener("input", updateFfCmd);
-    document.getElementById("copyFfBtn").addEventListener("click", function () {
-      copyText(ffCmd.textContent, this, "Salin Perintah FFmpeg");
+    [inSharp, inClarity, inVibrance].forEach(el => {
+      el.addEventListener("input", () => {
+        document.querySelectorAll("#presetGroup .pill").forEach(p => p.classList.remove("active"));
+        syncSliderLabels();
+      });
     });
 
-    updateFfCmd();
+    document.querySelectorAll("#presetGroup .pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#presetGroup .pill").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        const p = PRESETS[btn.dataset.preset];
+        inSharp.value = p.sharp;
+        inClarity.value = p.clarity;
+        inVibrance.value = p.vibrance;
+        syncSliderLabels();
+      });
+    });
+
+    document.querySelectorAll("#scaleGroup .pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#scaleGroup .pill").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        selectedScale = parseInt(btn.dataset.scale, 10);
+        updateTargetDimensions();
+      });
+    });
+
+    function computeOutputSize(w, h, scale) {
+      const MAX_DIM = 4096;
+      let tw = Math.round(w * scale);
+      let th = Math.round(h * scale);
+      if (tw > MAX_DIM || th > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / tw, MAX_DIM / th);
+        tw = Math.round(tw * ratio);
+        th = Math.round(th * ratio);
+      }
+      return { tw, th };
+    }
+
+    function updateTargetDimensions() {
+      if (!loadedImage) return;
+      const w = loadedImage.naturalWidth;
+      const h = loadedImage.naturalHeight;
+      const { tw, th } = computeOutputSize(w, h, selectedScale);
+      origResEl.textContent = `${w} × ${h}`;
+      targetResEl.textContent = `${tw} × ${th} px`;
+      resBar.classList.add("visible");
+    }
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      baseFileName = file.name.replace(/\.[^/.]+$/, "") || "photo";
+      fileLabel.textContent = file.name;
+      compareWrap.classList.remove("visible");
+      statusText.textContent = "Memuat gambar...";
+
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        loadedImage = img;
+        imgBefore.src = url;
+        updateTargetDimensions();
+        runBtn.disabled = false;
+        statusText.textContent = "Siap di-upscale ke HD.";
+      };
+      img.onerror = () => {
+        statusText.textContent = "Gagal membaca file gambar.";
+      };
+      img.src = url;
+    }
+
+    fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+    dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // Fast O(N) separable box blur for Unsharp Mask & Clarity
+    function boxBlurSeparable(src, w, h, radius) {
+      const tmp = new Float32Array(w * h * 3);
+      const dst = new Float32Array(w * h * 3);
+      const win = radius * 2 + 1;
+
+      // Horizontal pass
+      for (let y = 0; y < h; y++) {
+        const rowOff = y * w;
+        let rSum = 0, gSum = 0, bSum = 0;
+        for (let i = -radius; i <= radius; i++) {
+          const cx = Math.min(w - 1, Math.max(0, i));
+          const idx = (rowOff + cx) * 4;
+          rSum += src[idx];
+          gSum += src[idx + 1];
+          bSum += src[idx + 2];
+        }
+        for (let x = 0; x < w; x++) {
+          const outIdx = (rowOff + x) * 3;
+          tmp[outIdx] = rSum / win;
+          tmp[outIdx + 1] = gSum / win;
+          tmp[outIdx + 2] = bSum / win;
+
+          const remX = Math.max(0, x - radius);
+          const addX = Math.min(w - 1, x + radius + 1);
+          const remIdx = (rowOff + remX) * 4;
+          const addIdx = (rowOff + addX) * 4;
+          rSum += src[addIdx] - src[remIdx];
+          gSum += src[addIdx + 1] - src[remIdx + 1];
+          bSum += src[addIdx + 2] - src[remIdx + 2];
+        }
+      }
+
+      // Vertical pass
+      for (let x = 0; x < w; x++) {
+        let rSum = 0, gSum = 0, bSum = 0;
+        for (let i = -radius; i <= radius; i++) {
+          const cy = Math.min(h - 1, Math.max(0, i));
+          const idx = (cy * w + x) * 3;
+          rSum += tmp[idx];
+          gSum += tmp[idx + 1];
+          bSum += tmp[idx + 2];
+        }
+        for (let y = 0; y < h; y++) {
+          const outIdx = (y * w + x) * 3;
+          dst[outIdx] = rSum / win;
+          dst[outIdx + 1] = gSum / win;
+          dst[outIdx + 2] = bSum / win;
+
+          const remY = Math.max(0, y - radius);
+          const addY = Math.min(h - 1, y + radius + 1);
+          const remIdx = (remY * w + x) * 3;
+          const addIdx = (addY * w + x) * 3;
+          rSum += tmp[addIdx] - tmp[remIdx];
+          gSum += tmp[addIdx + 1] - tmp[remIdx + 1];
+          bSum += tmp[addIdx + 2] - tmp[remIdx + 2];
+        }
+      }
+      return dst;
+    }
+
+    function steppedUpscale(img, targetW, targetH) {
+      let curCanvas = document.createElement("canvas");
+      curCanvas.width = img.naturalWidth;
+      curCanvas.height = img.naturalHeight;
+      let ctx = curCanvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0);
+
+      while (curCanvas.width * 1.5 < targetW) {
+        const nextW = Math.round(curCanvas.width * 1.5);
+        const nextH = Math.round(curCanvas.height * 1.5);
+        const nextCanvas = document.createElement("canvas");
+        nextCanvas.width = nextW;
+        nextCanvas.height = nextH;
+        const nCtx = nextCanvas.getContext("2d");
+        nCtx.imageSmoothingEnabled = true;
+        nCtx.imageSmoothingQuality = "high";
+        nCtx.drawImage(curCanvas, 0, 0, nextW, nextH);
+        curCanvas = nextCanvas;
+      }
+
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = targetW;
+      finalCanvas.height = targetH;
+      const fCtx = finalCanvas.getContext("2d");
+      fCtx.imageSmoothingEnabled = true;
+      fCtx.imageSmoothingQuality = "high";
+      fCtx.drawImage(curCanvas, 0, 0, targetW, targetH);
+      return finalCanvas;
+    }
+
+    function enhancePixels(canvas, sharpPct, clarityPct, vibrancePct) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const ctx = canvas.getContext("2d");
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      const sharpAmount = (sharpPct / 100) * 1.45;
+      const clarityAmount = (clarityPct / 100) * 0.45;
+      const vibAmount = (vibrancePct / 100) * 0.85;
+      const threshold = 4; // Suppresses flat-area grain amplification
+
+      const fineBlur = sharpAmount > 0 ? boxBlurSeparable(data, w, h, 1) : null;
+      const wideBlur = clarityAmount > 0 ? boxBlurSeparable(data, w, h, 4) : null;
+
+      for (let i = 0, p = 0; i < data.length; i += 4, p += 3) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+
+        // 1. Thresholded Unsharp Mask (Edge Crispness)
+        if (fineBlur) {
+          const dr = r - fineBlur[p];
+          const dg = g - fineBlur[p + 1];
+          const db = b - fineBlur[p + 2];
+          if (Math.abs(dr) > threshold) r += dr * sharpAmount;
+          if (Math.abs(dg) > threshold) g += dg * sharpAmount;
+          if (Math.abs(db) > threshold) b += db * sharpAmount;
+        }
+
+        // 2. Local Micro-Contrast (Clarity)
+        if (wideBlur) {
+          r += (r - wideBlur[p]) * clarityAmount;
+          g += (g - wideBlur[p + 1]) * clarityAmount;
+          b += (b - wideBlur[p + 2]) * clarityAmount;
+        }
+
+        // 3. Adaptive Vibrance (Boosts muted colors without clipping skin tones)
+        if (vibAmount > 0) {
+          const maxC = Math.max(r, g, b);
+          const minC = Math.min(r, g, b);
+          const sat = maxC > 0 ? (maxC - minC) / maxC : 0;
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const boost = vibAmount * (1 - sat);
+          r += (r - lum) * boost;
+          g += (g - lum) * boost;
+          b += (b - lum) * boost;
+        }
+
+        data[i] = r < 0 ? 0 : r > 255 ? 255 : r;
+        data[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        data[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    runBtn.addEventListener("click", () => {
+      if (!loadedImage) return;
+      runBtn.disabled = true;
+      statusText.textContent = "Memproses upscale & penajaman HD...";
+
+      setTimeout(() => {
+        try {
+          const t0 = performance.now();
+          const { tw, th } = computeOutputSize(loadedImage.naturalWidth, loadedImage.naturalHeight, selectedScale);
+          const canvas = steppedUpscale(loadedImage, tw, th);
+          enhancePixels(
+            canvas,
+            parseInt(inSharp.value, 10),
+            parseInt(inClarity.value, 10),
+            parseInt(inVibrance.value, 10)
+          );
+          outputCanvas = canvas;
+
+          imgAfter.onload = () => {
+            imgBefore.style.width = compareBox.clientWidth + "px";
+            setSliderPercent(50);
+          };
+          imgAfter.src = canvas.toDataURL("image/png");
+          afterTag.textContent = `HD ${selectedScale}X (${tw}×${th})`;
+          compareWrap.classList.add("visible");
+
+          const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+          statusText.textContent = `Selesai dalam ${elapsed} detik (${tw} × ${th} px)`;
+        } catch (err) {
+          statusText.textContent = "Gagal memproses gambar (ukuran terlalu besar).";
+        } finally {
+          runBtn.disabled = false;
+        }
+      }, 40);
+    });
+
+    // Interactive Before/After Slider
+    function setSliderPercent(pct) {
+      const clamped = Math.max(0, Math.min(100, pct));
+      beforeClip.style.width = clamped + "%";
+      compareLine.style.left = clamped + "%";
+      compareHandle.style.left = clamped + "%";
+      imgBefore.style.width = compareBox.clientWidth + "px";
+    }
+
+    function handleMove(clientX) {
+      const rect = compareBox.getBoundingClientRect();
+      if (!rect.width) return;
+      const pct = ((clientX - rect.left) / rect.width) * 100;
+      setSliderPercent(pct);
+    }
+
+    let dragging = false;
+    compareBox.addEventListener("mousedown", e => { dragging = true; handleMove(e.clientX); });
+    window.addEventListener("mousemove", e => { if (dragging) handleMove(e.clientX); });
+    window.addEventListener("mouseup", () => { dragging = false; });
+
+    compareBox.addEventListener("touchstart", e => {
+      dragging = true;
+      if (e.touches.length) handleMove(e.touches[0].clientX);
+    }, { passive: true });
+    compareBox.addEventListener("touchmove", e => {
+      if (dragging && e.touches.length) handleMove(e.touches[0].clientX);
+    }, { passive: true });
+    compareBox.addEventListener("touchend", () => { dragging = false; });
+    window.addEventListener("resize", () => {
+      if (compareWrap.classList.contains("visible")) {
+        imgBefore.style.width = compareBox.clientWidth + "px";
+      }
+    });
+
+    // Download Handlers
+    function downloadOutput(mime, ext, quality) {
+      if (!outputCanvas) return;
+      outputCanvas.toBlob(blob => {
+        if (!blob) return;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${baseFileName}_matcha_${selectedScale}x.${ext}`;
+        a.click();
+      }, mime, quality);
+    }
+
+    document.getElementById("dlPngBtn").addEventListener("click", () => downloadOutput("image/png", "png", 1.0));
+    document.getElementById("dlJpgBtn").addEventListener("click", () => downloadOutput("image/jpeg", "jpg", 0.95));
   </script>
 </body>
 </html>
