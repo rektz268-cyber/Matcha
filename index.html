@@ -129,19 +129,72 @@
       word-break: break-word;
       min-height: 76px;
     }
-    .footer {
+    .studio-wrap {
+      display: none;
       margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #1e2a23;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .studio-wrap.visible {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .studio-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 16px;
+      background: #0d1310;
+      color: #ecf3ee;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--matcha);
+      box-shadow: 0 0 18px rgba(74, 222, 128, 0.12);
+      transition: background 0.2s, transform 0.1s;
+    }
+    .studio-btn:hover { background: #14221b; }
+    .studio-btn:active { transform: scale(0.99); }
+    .studio-tip {
+      margin-top: 8px;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--muted);
+      text-align: center;
+    }
+    .studio-tip b { color: #bbf7d0; }
+    .footer {
+      margin-top: 16px;
       text-align: center;
       font-size: 11px;
       color: #5c7063;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+    .footer a {
+      color: #7da38b;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      color: var(--matcha);
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">● Interleaved Engine v2</div>
+    <div class="badge">● Real-Audio Engine v3</div>
     <h1>Matcha HQ Patcher</h1>
-    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload lewat TikTok Web tanpa kompresi ulang.</p>
+    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload lewat TikTok Studio Web tanpa kompresi ulang.</p>
 
     <div class="dropzone" id="dropzone">
       <input type="file" id="fileInput" accept="video/mp4" />
@@ -151,7 +204,22 @@
 
     <button id="runBtn" disabled>Proses Video dengan Matcha</button>
     <pre id="log">Menunggu file MP4...</pre>
-    <div class="footer">Matcha Container Patcher • Interleaved Stream-Copy</div>
+
+    <div class="studio-wrap" id="studioWrap">
+      <a class="studio-btn" href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">
+        <span>Lanjut Upload ke TikTok Studio Web</span>
+        <span>↗</span>
+      </a>
+      <div class="studio-tip">
+        Tips: Aktifkan <b>Situs desktop</b> di menu browser sebelum mengunggah agar 60 FPS tidak dipangkas.
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Matcha Container Patcher</span>
+      <span>•</span>
+      <a href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">TikTok Studio ↗</a>
+    </div>
   </div>
 
   <script>
@@ -335,6 +403,17 @@
       return copy;
     }
 
+    function replaceU32Marker(bytes, markerVal, newVal) {
+      const copy = bytes.slice();
+      const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+      for (let i = 0; i + 4 <= copy.length; i++) {
+        if (view.getUint32(i, false) === markerVal) {
+          view.setUint32(i, newVal >>> 0, false);
+        }
+      }
+      return copy;
+    }
+
     function buildStscAndStco(chunkList, baseMdatOffset) {
       const stscRows = [];
       let prevSpc = -1;
@@ -391,17 +470,11 @@
       const parts = [];
       for (const b of parseBoxes(stblBytes, 8)) {
         const slice = stblBytes.subarray(b.pos, b.pos + b.size);
-        if (b.type === "stsc") {
-          parts.push(newStsc);
-        } else if (b.type === "stco") {
-          parts.push(newStco);
-        } else if (b.type === "co64") {
-          continue;
-        } else if (b.type === "stsd" && patchBtrt) {
-          parts.push(patchVideoStsdBtrt(slice));
-        } else {
-          parts.push(slice);
-        }
+        if (b.type === "stsc") parts.push(newStsc);
+        else if (b.type === "stco") parts.push(newStco);
+        else if (b.type === "co64") continue;
+        else if (b.type === "stsd" && patchBtrt) parts.push(patchVideoStsdBtrt(slice));
+        else parts.push(slice);
       }
       return box("stbl", concatBytes(parts));
     }
@@ -452,6 +525,13 @@
       return box("trak", concatBytes(parts));
     }
 
+    const STSD_TRAK2_44K = hexToBytes(
+      "0000007e737473640000000000000001" +
+      "0000006e6d703461000000000000000100000000000000000002001000000000ac440000" +
+      "0000003665736473000000000380808025000200048080801740150000000002024b0002024b0580808005121056e500068080800102" +
+      "0000001462747274000000000002024b0002024b"
+    );
+
     const STSD_TRAK3_DUAL = hexToBytes(
       "000000ef737473640000000000000002" +
       "0000006e6d703461000000000000000100000000000000000002001000000000bb800000" +
@@ -469,12 +549,12 @@
       "0000001462747274000000000003b83b0003b83b"
     );
 
-    function buildInjectedAacTrak(trackId, durMs, numFrames, frameSizes, newStsc, newStco, doubleMp4a) {
+    function buildAudioTrak(trackId, altGroup, durMs, sampleRate, numFrames, frameSizes, newStsc, newStco, stsdBox) {
       const tkhdPayload = new Uint8Array(80);
       const tv = new DataView(tkhdPayload.buffer);
       tv.setUint32(8, trackId, false);
       tv.setUint32(16, durMs, false);
-      tv.setUint16(30, 2, false);
+      tv.setUint16(30, altGroup, false);
       tv.setUint16(32, 0x0100, false);
       tv.setUint32(36, 0x00010000, false);
       tv.setUint32(52, 0x00010000, false);
@@ -491,7 +571,7 @@
 
       const mdhdPayload = new Uint8Array(20);
       const mv = new DataView(mdhdPayload.buffer);
-      mv.setUint32(8, 48000, false);
+      mv.setUint32(8, sampleRate, false);
       mv.setUint32(12, numFrames * 1024, false);
       mv.setUint16(16, 0x55C4, false);
       const mdhd = fullbox("mdhd", 0, 0, mdhdPayload);
@@ -501,7 +581,6 @@
       const dref = fullbox("dref", 0, 0, concatBytes([u32(1), fullbox("url ", 0, 1, new Uint8Array(0))]));
       const dinf = box("dinf", dref);
 
-      const stsd = doubleMp4a ? STSD_TRAK3_DUAL : STSD_TRAK4_SINGLE;
       const stts = fullbox("stts", 0, 0, concatBytes([u32(1), u32(numFrames), u32(1024)]));
 
       const stszPayload = new Uint8Array(8 + numFrames * 4);
@@ -522,7 +601,7 @@
 
       const sbgp = fullbox("sbgp", 0, 0, concatBytes([strBytes("roll"), u32(1), u32(numFrames), u32(1)]));
 
-      const stbl = box("stbl", concatBytes([stsd, stts, newStsc, stsz, newStco, sgpd, sbgp]));
+      const stbl = box("stbl", concatBytes([stsdBox, stts, newStsc, stsz, newStco, sgpd, sbgp]));
       const minf = box("minf", concatBytes([smhd, dinf, stbl]));
       const mdia = box("mdia", concatBytes([mdhd, hdlr, minf]));
       return box("trak", concatBytes([tkhd, edts, mdia]));
@@ -556,23 +635,84 @@
       return box("udta", meta);
     }
 
-    function generate243kAacFrames(numFrames) {
-      const frame637 = new Uint8Array(637);
-      frame637.set([0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c], 0);
-      const frame638 = new Uint8Array(638);
-      frame638.set([0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c], 0);
-
-      const samples = new Array(numFrames);
-      const sizes = new Array(numFrames);
-      for (let i = 0; i < numFrames; i++) {
-        const f = (i % 3 === 0) ? frame638 : frame637;
-        samples[i] = f;
-        sizes[i] = f.length;
+    async function encodeRealAacTracks(arrayBuffer, vidDurMs, matchaDurMs) {
+      if (typeof AudioEncoder === "undefined" || typeof AudioData === "undefined") {
+        return null;
       }
-      return { samples, sizes };
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+
+      const actx = new AudioCtx();
+      let decoded;
+      try {
+        decoded = await actx.decodeAudioData(arrayBuffer.slice(0));
+      } finally {
+        await actx.close();
+      }
+
+      async function renderResampled(targetRate, totalMs) {
+        const totalSamples = Math.ceil((totalMs / 1000) * targetRate);
+        const off = new OfflineAudioContext(2, totalSamples, targetRate);
+        const src = off.createBufferSource();
+        src.buffer = decoded;
+        src.connect(off.destination);
+        src.start(0);
+        return await off.startRendering();
+      }
+
+      async function encodeBuffer(audioBuf, rate, bitrate) {
+        const frames = [];
+        const encoder = new AudioEncoder({
+          output: (chunk) => {
+            const bytes = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(bytes);
+            frames.push(bytes);
+          },
+          error: (err) => { throw err; }
+        });
+        encoder.configure({
+          codec: "mp4a.40.2",
+          sampleRate: rate,
+          numberOfChannels: 2,
+          bitrate: bitrate
+        });
+
+        const ch0 = audioBuf.getChannelData(0);
+        const ch1 = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : ch0;
+        const lenTotal = audioBuf.length;
+        for (let off = 0; off < lenTotal; off += 1024) {
+          const n = Math.min(1024, lenTotal - off);
+          const planar = new Float32Array(n * 2);
+          planar.set(ch0.subarray(off, off + n), 0);
+          planar.set(ch1.subarray(off, off + n), n);
+          const ad = new AudioData({
+            format: "f32-planar",
+            sampleRate: rate,
+            numberOfChannels: 2,
+            timestamp: Math.round((off / rate) * 1000000),
+            data: planar
+          });
+          encoder.encode(ad);
+          ad.close();
+        }
+        await encoder.flush();
+        encoder.close();
+
+        const totalBytes = frames.reduce((s, f) => s + f.length, 0);
+        const durSec = (frames.length * 1024) / rate;
+        const avgBitrate = Math.max(64000, Math.round((totalBytes * 8) / durSec));
+        return { samples: frames, sizes: frames.map(f => f.length), avgBitrate };
+      }
+
+      const buf44 = await renderResampled(44100, vidDurMs);
+      const buf48 = await renderResampled(48000, matchaDurMs);
+
+      const track2Enc = await encodeBuffer(buf44, 44100, 132000);
+      const track34Enc = await encodeBuffer(buf48, 48000, 244000);
+      return { track2Enc, track34Enc };
     }
 
-    function patchMatchaMP4(arrayBuffer) {
+    async function patchMatchaMP4(arrayBuffer) {
       const raw = new Uint8Array(arrayBuffer);
       const top = parseBoxes(raw);
       const moovInfo = top.find(b => b.type === "moov");
@@ -593,18 +733,48 @@
       const matchaDurMs = vidDurMs + 370;
 
       const vidSamples = extractTrackSamples(raw, origTraks[0]);
-      const aud2Samples = extractTrackSamples(raw, origTraks[1]);
-      if (!vidSamples.length || !aud2Samples.length) {
+      const origAudSamples = extractTrackSamples(raw, origTraks[1]);
+      if (!vidSamples.length || !origAudSamples.length) {
         throw new Error("Gagal mengekstrak sample video/audio asli.");
       }
 
-      const numAacFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
-      const { samples: aacSamples, sizes: aacSizes } = generate243kAacFrames(numAacFrames);
+      // Encode suara asli ke AAC 44.1kHz (Track #2) & AAC 48kHz +370ms (Track #3 & #4)
+      let encoded = null;
+      try {
+        encoded = await encodeRealAacTracks(arrayBuffer, vidDurMs, matchaDurMs);
+      } catch (e) {
+        encoded = null;
+      }
 
-      // Interleave semua 4 track per ~0.25 detik agar stsc & stco menyerupai muxing asli
+      let aud2Samples, aac34Samples, aac34Sizes, stsd2, stsd3, stsd4, useCustomTrak2;
+
+      if (encoded && encoded.track2Enc.samples.length && encoded.track34Enc.samples.length) {
+        useCustomTrak2 = true;
+        aud2Samples = encoded.track2Enc.samples;
+        aac34Samples = encoded.track34Enc.samples;
+        aac34Sizes = encoded.track34Enc.sizes;
+        stsd2 = replaceU32Marker(STSD_TRAK2_44K, 0x0002024b, encoded.track2Enc.avgBitrate);
+        stsd3 = replaceU32Marker(STSD_TRAK3_DUAL, 0x0003b83b, encoded.track34Enc.avgBitrate);
+        stsd4 = replaceU32Marker(STSD_TRAK4_SINGLE, 0x0003b83b, encoded.track34Enc.avgBitrate);
+      } else {
+        // Fallback aman: kloning sample AAC asli + frame sunyi AAC valid (6 byte) tanpa padding nol
+        useCustomTrak2 = false;
+        aud2Samples = origAudSamples;
+        const targetFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
+        const padFrames = Math.max(1, targetFrames - origAudSamples.length);
+        const validSilentAac = hexToBytes("211004608c1c");
+        aac34Samples = [...origAudSamples];
+        for (let i = 0; i < padFrames; i++) aac34Samples.push(validSilentAac);
+        aac34Sizes = aac34Samples.map(s => s.length);
+        const totalBytes = aac34Samples.reduce((s, f) => s + f.length, 0);
+        const fallbackBr = Math.round((totalBytes * 8) / ((aac34Samples.length * 1024) / 48000));
+        stsd3 = replaceU32Marker(STSD_TRAK3_DUAL, 0x0003b83b, fallbackBr);
+        stsd4 = replaceU32Marker(STSD_TRAK4_SINGLE, 0x0003b83b, fallbackBr);
+      }
+
       const buckets = Math.max(1, Math.ceil(vidDurMs / 250));
       const mdatChunks = [];
-      const t1Chunks = [], t2Chunks = [], t3Chunks = [], t4Chunks = [];
+      const t1Chunks = [], t2Chunks = [], t34Chunks = [];
       let relPos = 0;
 
       for (let b = 0; b < buckets; b++) {
@@ -622,14 +792,12 @@
           for (let i = a20; i < a21; i++) { mdatChunks.push(aud2Samples[i]); relPos += aud2Samples[i].length; }
         }
 
-        const a30 = Math.floor((b * aacSamples.length) / buckets);
-        const a31 = Math.floor(((b + 1) * aacSamples.length) / buckets);
+        // Track #3 dan Track #4 berbagi offset chunk yang sama persis di mdat
+        const a30 = Math.floor((b * aac34Samples.length) / buckets);
+        const a31 = Math.floor(((b + 1) * aac34Samples.length) / buckets);
         if (a31 > a30) {
-          t3Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
-          for (let i = a30; i < a31; i++) { mdatChunks.push(aacSamples[i]); relPos += aacSamples[i].length; }
-
-          t4Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
-          for (let i = a30; i < a31; i++) { mdatChunks.push(aacSamples[i]); relPos += aacSamples[i].length; }
+          t34Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
+          for (let i = a30; i < a31; i++) { mdatChunks.push(aac34Samples[i]); relPos += aac34Samples[i].length; }
         }
       }
 
@@ -650,13 +818,14 @@
       const assembleMoov = (baseMdatOffset) => {
         const s1 = buildStscAndStco(t1Chunks, baseMdatOffset);
         const s2 = buildStscAndStco(t2Chunks, baseMdatOffset);
-        const s3 = buildStscAndStco(t3Chunks, baseMdatOffset);
-        const s4 = buildStscAndStco(t4Chunks, baseMdatOffset);
+        const s34 = buildStscAndStco(t34Chunks, baseMdatOffset);
 
         const trak1 = patchTrakInterleaved(origTraks[0], 1, 0, trakMsList[0], s1.stsc, s1.stco, true);
-        const trak2 = patchTrakInterleaved(origTraks[1], 2, 1, trakMsList[1], s2.stsc, s2.stco, false);
-        const trak3 = buildInjectedAacTrak(3, matchaDurMs, numAacFrames, aacSizes, s3.stsc, s3.stco, true);
-        const trak4 = buildInjectedAacTrak(4, matchaDurMs, numAacFrames, aacSizes, s4.stsc, s4.stco, false);
+        const trak2 = useCustomTrak2
+          ? buildAudioTrak(2, 1, trakMsList[1], 44100, aud2Samples.length, aud2Samples.map(s => s.length), s2.stsc, s2.stco, stsd2)
+          : patchTrakInterleaved(origTraks[1], 2, 1, trakMsList[1], s2.stsc, s2.stco, false);
+        const trak3 = buildAudioTrak(3, 2, matchaDurMs, 48000, aac34Samples.length, aac34Sizes, s34.stsc, s34.stco, stsd3);
+        const trak4 = buildAudioTrak(4, 2, matchaDurMs, 48000, aac34Samples.length, aac34Sizes, s34.stsc, s34.stco, stsd4);
         return box("moov", concatBytes([mvhdBox, trak1, trak2, trak3, trak4, udtaBox]));
       };
 
@@ -671,7 +840,7 @@
         blob: new Blob([ftypBox, finalMoov, mdat1, mdat2], { type: "video/mp4" }),
         vidDurMs,
         matchaDurMs,
-        totalChunks: t1Chunks.length
+        mode: useCustomTrak2 ? "WebCodecs AAC 48kHz + 44.1kHz" : "Stream-Clone AAC"
       };
     }
 
@@ -680,8 +849,10 @@
     const dropzone = document.getElementById("dropzone");
     const runBtn = document.getElementById("runBtn");
     const log = document.getElementById("log");
+    const studioWrap = document.getElementById("studioWrap");
 
     function updateFileUI() {
+      studioWrap.classList.remove("visible");
       if (fileInput.files.length) {
         const f = fileInput.files[0];
         fileLabel.textContent = f.name;
@@ -705,32 +876,31 @@
       }
     });
 
-    runBtn.addEventListener("click", () => {
+    runBtn.addEventListener("click", async () => {
       const file = fileInput.files[0];
       if (!file) return;
       runBtn.disabled = true;
-      log.textContent = "Menyusun interleaved chunks Matcha...";
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const res = patchMatchaMP4(reader.result);
-          const outName = file.name.replace(/\.mp4$/i, "") + "_matcha_v2.mp4";
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(res.blob);
-          a.download = outName;
-          a.click();
-          log.textContent =
-            `[OK] Selesai dipatch (Interleaved v2)!\n` +
-            `Output  : ${outName}\n` +
-            `Durasi  : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
-            `Chunks  : ${res.totalChunks} interleaved blocks + btrt fixed`;
-        } catch (err) {
-          log.textContent = `[ERROR] ${err.message}`;
-        } finally {
-          runBtn.disabled = false;
-        }
-      };
-      reader.readAsArrayBuffer(file);
+      studioWrap.classList.remove("visible");
+      log.textContent = "Meng-encode audio & menyusun container Matcha...";
+      try {
+        const buf = await file.arrayBuffer();
+        const res = await patchMatchaMP4(buf);
+        const outName = file.name.replace(/\.mp4$/i, "") + "_matcha.mp4";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(res.blob);
+        a.download = outName;
+        a.click();
+        log.textContent =
+          `[OK] Selesai dipatch (v3)!\n` +
+          `Output : ${outName}\n` +
+          `Durasi : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
+          `Audio  : ${res.mode}`;
+        studioWrap.classList.add("visible");
+      } catch (err) {
+        log.textContent = `[ERROR] ${err.message}`;
+      } finally {
+        runBtn.disabled = false;
+      }
     });
   </script>
 </body>
