@@ -139,9 +139,9 @@
 </head>
 <body>
   <div class="card">
-    <div class="badge">● Client-Side Engine</div>
+    <div class="badge">● Interleaved Engine v2</div>
     <h1>Matcha HQ Patcher</h1>
-    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload tanpa kompresi ulang. Diproses 100% langsung di browser.</p>
+    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload lewat TikTok Web tanpa kompresi ulang.</p>
 
     <div class="dropzone" id="dropzone">
       <input type="file" id="fileInput" accept="video/mp4" />
@@ -151,7 +151,7 @@
 
     <button id="runBtn" disabled>Proses Video dengan Matcha</button>
     <pre id="log">Menunggu file MP4...</pre>
-    <div class="footer">Matcha Container Patcher • Stream-Copy Safe</div>
+    <div class="footer">Matcha Container Patcher • Interleaved Stream-Copy</div>
   </div>
 
   <script>
@@ -316,6 +316,59 @@
       return [];
     }
 
+    function patchVideoStsdBtrt(stsdBytes) {
+      const copy = stsdBytes.slice();
+      const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+      for (let i = 16; i + 20 <= copy.length; i++) {
+        if (
+          copy[i] === 0x00 && copy[i + 1] === 0x00 && copy[i + 2] === 0x00 && copy[i + 3] === 0x14 &&
+          copy[i + 4] === 0x62 && copy[i + 5] === 0x74 && copy[i + 6] === 0x72 && copy[i + 7] === 0x74
+        ) {
+          const maxBr = view.getUint32(i + 12, false);
+          const avgBr = view.getUint32(i + 16, false);
+          if (avgBr === 0 && maxBr > 0) {
+            view.setUint32(i + 16, maxBr, false);
+          }
+          break;
+        }
+      }
+      return copy;
+    }
+
+    function buildStscAndStco(chunkList, baseMdatOffset) {
+      const stscRows = [];
+      let prevSpc = -1;
+      for (let i = 0; i < chunkList.length; i++) {
+        const spc = chunkList[i].samplesCount;
+        if (spc !== prevSpc) {
+          stscRows.push({ firstChunk: i + 1, samplesPerChunk: spc });
+          prevSpc = spc;
+        }
+      }
+
+      const stscPayload = new Uint8Array(4 + stscRows.length * 12);
+      const scv = new DataView(stscPayload.buffer);
+      scv.setUint32(0, stscRows.length, false);
+      for (let i = 0; i < stscRows.length; i++) {
+        const off = 4 + i * 12;
+        scv.setUint32(off, stscRows[i].firstChunk, false);
+        scv.setUint32(off + 4, stscRows[i].samplesPerChunk, false);
+        scv.setUint32(off + 8, 1, false);
+      }
+
+      const stcoPayload = new Uint8Array(4 + chunkList.length * 4);
+      const cov = new DataView(stcoPayload.buffer);
+      cov.setUint32(0, chunkList.length, false);
+      for (let i = 0; i < chunkList.length; i++) {
+        cov.setUint32(4 + i * 4, (baseMdatOffset + chunkList[i].relOffset) >>> 0, false);
+      }
+
+      return {
+        stsc: fullbox("stsc", 0, 0, stscPayload),
+        stco: fullbox("stco", 0, 0, stcoPayload)
+      };
+    }
+
     function patchEdts(edtsBytes, targetMs) {
       const parts = [];
       for (const b of parseBoxes(edtsBytes, 8)) {
@@ -334,48 +387,44 @@
       return box("edts", concatBytes(parts));
     }
 
-    function patchStbl(stblBytes, deltaOffset) {
+    function patchStblInterleaved(stblBytes, newStsc, newStco, patchBtrt) {
       const parts = [];
       for (const b of parseBoxes(stblBytes, 8)) {
-        const chunk = stblBytes.slice(b.pos, b.pos + b.size);
-        const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-        if (b.type === "stco") {
-          const count = view.getUint32(12, false);
-          for (let i = 0; i < count; i++) {
-            const off = 16 + i * 4;
-            view.setUint32(off, (view.getUint32(off, false) + deltaOffset) >>> 0, false);
-          }
+        const slice = stblBytes.subarray(b.pos, b.pos + b.size);
+        if (b.type === "stsc") {
+          parts.push(newStsc);
+        } else if (b.type === "stco") {
+          parts.push(newStco);
         } else if (b.type === "co64") {
-          const count = view.getUint32(12, false);
-          for (let i = 0; i < count; i++) {
-            const off = 16 + i * 8;
-            view.setBigUint64(off, view.getBigUint64(off, false) + BigInt(deltaOffset), false);
-          }
+          continue;
+        } else if (b.type === "stsd" && patchBtrt) {
+          parts.push(patchVideoStsdBtrt(slice));
+        } else {
+          parts.push(slice);
         }
-        parts.push(chunk);
       }
       return box("stbl", concatBytes(parts));
     }
 
-    function patchMinf(minfBytes, deltaOffset) {
+    function patchMinfInterleaved(minfBytes, newStsc, newStco, patchBtrt) {
       const parts = [];
       for (const b of parseBoxes(minfBytes, 8)) {
         const slice = minfBytes.subarray(b.pos, b.pos + b.size);
-        parts.push(b.type === "stbl" ? patchStbl(slice, deltaOffset) : slice);
+        parts.push(b.type === "stbl" ? patchStblInterleaved(slice, newStsc, newStco, patchBtrt) : slice);
       }
       return box("minf", concatBytes(parts));
     }
 
-    function patchMdia(mdiaBytes, deltaOffset) {
+    function patchMdiaInterleaved(mdiaBytes, newStsc, newStco, patchBtrt) {
       const parts = [];
       for (const b of parseBoxes(mdiaBytes, 8)) {
         const slice = mdiaBytes.subarray(b.pos, b.pos + b.size);
-        parts.push(b.type === "minf" ? patchMinf(slice, deltaOffset) : slice);
+        parts.push(b.type === "minf" ? patchMinfInterleaved(slice, newStsc, newStco, patchBtrt) : slice);
       }
       return box("mdia", concatBytes(parts));
     }
 
-    function patchTrak(trakBytes, newTrackId, altGroup, deltaOffset, targetMs) {
+    function patchTrakInterleaved(trakBytes, newTrackId, altGroup, targetMs, newStsc, newStco, patchBtrt) {
       const parts = [];
       for (const b of parseBoxes(trakBytes, 8)) {
         const chunk = trakBytes.slice(b.pos, b.pos + b.size);
@@ -395,7 +444,7 @@
         } else if (b.type === "edts") {
           parts.push(patchEdts(chunk, targetMs));
         } else if (b.type === "mdia") {
-          parts.push(patchMdia(chunk, deltaOffset));
+          parts.push(patchMdiaInterleaved(chunk, newStsc, newStco, patchBtrt));
         } else {
           parts.push(chunk);
         }
@@ -420,7 +469,7 @@
       "0000001462747274000000000003b83b0003b83b"
     );
 
-    function buildInjectedAacTrak(trackId, durMs, numFrames, frameSizes, chunkOffset, doubleMp4a) {
+    function buildInjectedAacTrak(trackId, durMs, numFrames, frameSizes, newStsc, newStco, doubleMp4a) {
       const tkhdPayload = new Uint8Array(80);
       const tv = new DataView(tkhdPayload.buffer);
       tv.setUint32(8, trackId, false);
@@ -454,7 +503,6 @@
 
       const stsd = doubleMp4a ? STSD_TRAK3_DUAL : STSD_TRAK4_SINGLE;
       const stts = fullbox("stts", 0, 0, concatBytes([u32(1), u32(numFrames), u32(1024)]));
-      const stsc = fullbox("stsc", 0, 0, concatBytes([u32(1), u32(1), u32(numFrames), u32(1)]));
 
       const stszPayload = new Uint8Array(8 + numFrames * 4);
       const szv = new DataView(stszPayload.buffer);
@@ -463,8 +511,6 @@
         szv.setUint32(8 + i * 4, frameSizes[i], false);
       }
       const stsz = fullbox("stsz", 0, 0, stszPayload);
-
-      const stco = fullbox("stco", 0, 0, concatBytes([u32(1), u32(chunkOffset)]));
 
       const sgpdPayload = new Uint8Array(14);
       const sgv = new DataView(sgpdPayload.buffer);
@@ -476,30 +522,21 @@
 
       const sbgp = fullbox("sbgp", 0, 0, concatBytes([strBytes("roll"), u32(1), u32(numFrames), u32(1)]));
 
-      const stbl = box("stbl", concatBytes([stsd, stts, stsc, stsz, stco, sgpd, sbgp]));
+      const stbl = box("stbl", concatBytes([stsd, stts, newStsc, stsz, newStco, sgpd, sbgp]));
       const minf = box("minf", concatBytes([smhd, dinf, stbl]));
       const mdia = box("mdia", concatBytes([mdhd, hdlr, minf]));
       return box("trak", concatBytes([tkhd, edts, mdia]));
     }
 
-    async function sha256Hex(bytes) {
-      if (window.crypto && window.crypto.subtle) {
-        const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
-        return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
-      }
-      return "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
-    }
-
-    async function buildUdtaMeta(seedBytes) {
+    function buildUdtaMeta() {
       const hdlr = fullbox("hdlr", 0, 0, concatBytes([u32(0), strBytes("mdta"), new Uint8Array(13)]));
       const keyNames = [
         "major_brand", "minor_version", "compatible_brands",
-        "te_is_reencode", "artist", "comment", "copyright", "encoder"
+        "te_is_reencode", "artist", "comment", "encoder"
       ];
       const keyEntries = keyNames.map(k => concatBytes([u32(8 + k.length), strBytes("mdta"), strBytes(k)]));
       const keys = fullbox("keys", 0, 0, concatBytes([u32(keyNames.length), ...keyEntries]));
 
-      const sigHash = await sha256Hex(seedBytes);
       const items = [
         [1, strBytes("isom")],
         [1, strBytes("512")],
@@ -507,7 +544,6 @@
         [1, strBytes("1")],
         [1, strBytes("Matcha")],
         [1, strBytes("Patched by Matcha")],
-        [1, strBytes(sigHash)],
         [1, strBytes("Lavf59.27.100")]
       ];
 
@@ -520,7 +556,23 @@
       return box("udta", meta);
     }
 
-    async function patchMatchaMP4(arrayBuffer) {
+    function generate243kAacFrames(numFrames) {
+      const frame637 = new Uint8Array(637);
+      frame637.set([0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c], 0);
+      const frame638 = new Uint8Array(638);
+      frame638.set([0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c], 0);
+
+      const samples = new Array(numFrames);
+      const sizes = new Array(numFrames);
+      for (let i = 0; i < numFrames; i++) {
+        const f = (i % 3 === 0) ? frame638 : frame637;
+        samples[i] = f;
+        sizes[i] = f.length;
+      }
+      return { samples, sizes };
+    }
+
+    function patchMatchaMP4(arrayBuffer) {
       const raw = new Uint8Array(arrayBuffer);
       const top = parseBoxes(raw);
       const moovInfo = top.find(b => b.type === "moov");
@@ -528,9 +580,6 @@
       if (!moovInfo || !mdatInfo) throw new Error("Atom moov atau mdat tidak ditemukan.");
 
       const moovBytes = raw.subarray(moovInfo.pos, moovInfo.pos + moovInfo.size);
-      const origMdatPayloadStart = mdatInfo.pos + mdatInfo.hdr;
-      const origMdatPayload = raw.subarray(origMdatPayloadStart, mdatInfo.pos + mdatInfo.size);
-
       const origTraks = parseBoxes(moovBytes, 8)
         .filter(b => b.type === "trak")
         .map(b => moovBytes.subarray(b.pos, b.pos + b.size));
@@ -543,23 +592,49 @@
       const vidDurMs = trakMsList[0];
       const matchaDurMs = vidDurMs + 370;
 
-      const realAudioSamples = extractTrackSamples(raw, origTraks[1]);
-      if (!realAudioSamples.length) {
-        throw new Error("Gagal mengekstrak stream audio asli.");
+      const vidSamples = extractTrackSamples(raw, origTraks[0]);
+      const aud2Samples = extractTrackSamples(raw, origTraks[1]);
+      if (!vidSamples.length || !aud2Samples.length) {
+        throw new Error("Gagal mengekstrak sample video/audio asli.");
       }
 
-      const targetFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
-      const padFrames = Math.max(1, targetFrames - realAudioSamples.length);
-      const silentAac = hexToBytes("211004608c1c");
-      const allAacSamples = [...realAudioSamples];
-      for (let i = 0; i < padFrames; i++) allAacSamples.push(silentAac);
+      const numAacFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
+      const { samples: aacSamples, sizes: aacSizes } = generate243kAacFrames(numAacFrames);
 
-      const aacPayload = concatBytes(allAacSamples);
-      const aacSizes = allAacSamples.map(s => s.length);
-      const numAacFrames = allAacSamples.length;
+      // Interleave semua 4 track per ~0.25 detik agar stsc & stco menyerupai muxing asli
+      const buckets = Math.max(1, Math.ceil(vidDurMs / 250));
+      const mdatChunks = [];
+      const t1Chunks = [], t2Chunks = [], t3Chunks = [], t4Chunks = [];
+      let relPos = 0;
+
+      for (let b = 0; b < buckets; b++) {
+        const v0 = Math.floor((b * vidSamples.length) / buckets);
+        const v1 = Math.floor(((b + 1) * vidSamples.length) / buckets);
+        if (v1 > v0) {
+          t1Chunks.push({ relOffset: relPos, samplesCount: v1 - v0 });
+          for (let i = v0; i < v1; i++) { mdatChunks.push(vidSamples[i]); relPos += vidSamples[i].length; }
+        }
+
+        const a20 = Math.floor((b * aud2Samples.length) / buckets);
+        const a21 = Math.floor(((b + 1) * aud2Samples.length) / buckets);
+        if (a21 > a20) {
+          t2Chunks.push({ relOffset: relPos, samplesCount: a21 - a20 });
+          for (let i = a20; i < a21; i++) { mdatChunks.push(aud2Samples[i]); relPos += aud2Samples[i].length; }
+        }
+
+        const a30 = Math.floor((b * aacSamples.length) / buckets);
+        const a31 = Math.floor(((b + 1) * aacSamples.length) / buckets);
+        if (a31 > a30) {
+          t3Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
+          for (let i = a30; i < a31; i++) { mdatChunks.push(aacSamples[i]); relPos += aacSamples[i].length; }
+
+          t4Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
+          for (let i = a30; i < a31; i++) { mdatChunks.push(aacSamples[i]); relPos += aacSamples[i].length; }
+        }
+      }
 
       const ftypBox = box("ftyp", concatBytes([strBytes("isom"), u32(512), strBytes("isomiso2mp41")]));
-      const udtaBox = await buildUdtaMeta(raw.subarray(0, Math.min(4096, raw.length)));
+      const udtaBox = buildUdtaMeta();
 
       const mvhdPayload = new Uint8Array(96);
       const mv = new DataView(mvhdPayload.buffer);
@@ -572,28 +647,31 @@
       mv.setUint32(64, 0x40000000, false);
       const mvhdBox = fullbox("mvhd", 0, 0, mvhdPayload);
 
-      const assembleMoov = (delta, aacOffset) => {
-        const patchedOrig = origTraks.map((tr, idx) => patchTrak(tr, idx + 1, idx === 0 ? 0 : 1, delta, trakMsList[idx]));
-        const nextId = patchedOrig.length + 1;
-        const trak3 = buildInjectedAacTrak(nextId, matchaDurMs, numAacFrames, aacSizes, aacOffset, true);
-        const trak4 = buildInjectedAacTrak(nextId + 1, matchaDurMs, numAacFrames, aacSizes, aacOffset, false);
-        return box("moov", concatBytes([mvhdBox, ...patchedOrig, trak3, trak4, udtaBox]));
+      const assembleMoov = (baseMdatOffset) => {
+        const s1 = buildStscAndStco(t1Chunks, baseMdatOffset);
+        const s2 = buildStscAndStco(t2Chunks, baseMdatOffset);
+        const s3 = buildStscAndStco(t3Chunks, baseMdatOffset);
+        const s4 = buildStscAndStco(t4Chunks, baseMdatOffset);
+
+        const trak1 = patchTrakInterleaved(origTraks[0], 1, 0, trakMsList[0], s1.stsc, s1.stco, true);
+        const trak2 = patchTrakInterleaved(origTraks[1], 2, 1, trakMsList[1], s2.stsc, s2.stco, false);
+        const trak3 = buildInjectedAacTrak(3, matchaDurMs, numAacFrames, aacSizes, s3.stsc, s3.stco, true);
+        const trak4 = buildInjectedAacTrak(4, matchaDurMs, numAacFrames, aacSizes, s4.stsc, s4.stco, false);
+        return box("moov", concatBytes([mvhdBox, trak1, trak2, trak3, trak4, udtaBox]));
       };
 
-      const dummyMoov = assembleMoov(0, 0);
+      const dummyMoov = assembleMoov(0);
       const newMdat1PayloadStart = ftypBox.length + dummyMoov.length + 8;
-      const delta = newMdat1PayloadStart - origMdatPayloadStart;
-      const aacChunkOffset = newMdat1PayloadStart + origMdatPayload.length;
-      const finalMoov = assembleMoov(delta, aacChunkOffset);
+      const finalMoov = assembleMoov(newMdat1PayloadStart);
 
-      const mdat1 = box("mdat", concatBytes([origMdatPayload, aacPayload]));
+      const mdat1 = box("mdat", concatBytes(mdatChunks));
       const mdat2 = box("mdat", hexToBytes("211004608c1c".repeat(17)));
 
       return {
         blob: new Blob([ftypBox, finalMoov, mdat1, mdat2], { type: "video/mp4" }),
         vidDurMs,
         matchaDurMs,
-        numAacFrames
+        totalChunks: t1Chunks.length
       };
     }
 
@@ -627,29 +705,32 @@
       }
     });
 
-    runBtn.addEventListener("click", async () => {
+    runBtn.addEventListener("click", () => {
       const file = fileInput.files[0];
       if (!file) return;
       runBtn.disabled = true;
-      log.textContent = "Memproses struktur container Matcha...";
-      try {
-        const buf = await file.arrayBuffer();
-        const res = await patchMatchaMP4(buf);
-        const outName = file.name.replace(/\.mp4$/i, "") + "_matcha.mp4";
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(res.blob);
-        a.download = outName;
-        a.click();
-        log.textContent =
-          `[OK] Selesai dipatch oleh Matcha!\n` +
-          `Output  : ${outName}\n` +
-          `Durasi  : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
-          `Audio   : Cloned (${res.numAacFrames} frames) + Dual-mp4a`;
-      } catch (err) {
-        log.textContent = `[ERROR] ${err.message}`;
-      } finally {
-        runBtn.disabled = false;
-      }
+      log.textContent = "Menyusun interleaved chunks Matcha...";
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const res = patchMatchaMP4(reader.result);
+          const outName = file.name.replace(/\.mp4$/i, "") + "_matcha_v2.mp4";
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(res.blob);
+          a.download = outName;
+          a.click();
+          log.textContent =
+            `[OK] Selesai dipatch (Interleaved v2)!\n` +
+            `Output  : ${outName}\n` +
+            `Durasi  : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
+            `Chunks  : ${res.totalChunks} interleaved blocks + btrt fixed`;
+        } catch (err) {
+          log.textContent = `[ERROR] ${err.message}`;
+        } finally {
+          runBtn.disabled = false;
+        }
+      };
+      reader.readAsArrayBuffer(file);
     });
   </script>
 </body>
