@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matcha — HD Photo Upscaler</title>
+  <title>Matcha — AI Photo Upscaler</title>
+  <!-- TensorFlow.js & ESRGAN Neural Network Model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@upscalerjs/default-model@1.0.0-beta.13/dist/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/upscaler@1.0.0-beta.19/dist/browser/umd/upscaler.min.js"></script>
   <style>
     :root {
       --bg: #0c100e;
@@ -122,18 +126,15 @@
     }
     .pill-group {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
       margin-bottom: 14px;
     }
-    .pill-group.two {
-      grid-template-columns: 1fr 1fr;
-    }
     .pill {
-      padding: 9px 6px;
+      padding: 10px 8px;
       background: var(--panel);
       border: 1px solid #26362d;
-      border-radius: 9px;
+      border-radius: 10px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 700;
@@ -144,38 +145,6 @@
       background: var(--matcha-glow);
       border-color: var(--matcha);
       color: var(--matcha);
-    }
-    .sliders {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 11px;
-    }
-    .slider-row {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .slider-head {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #c5d6cb;
-    }
-    .slider-head span:last-child {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: var(--matcha);
-      font-weight: 600;
-    }
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--matcha);
-      cursor: pointer;
-      margin: 0;
     }
     .primary-btn {
       width: 100%;
@@ -195,15 +164,31 @@
       color: #5d7064;
       cursor: not-allowed;
     }
+    .progress-wrap {
+      display: none;
+      margin-top: 12px;
+      background: #090d0b;
+      border: 1px solid #1e2b23;
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .progress-wrap.visible { display: block; }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--matcha-dark), var(--matcha));
+      transition: width 0.15s ease;
+    }
     .status-text {
-      margin-top: 10px;
+      margin-top: 9px;
       font-size: 12px;
       text-align: center;
       color: var(--muted);
       min-height: 18px;
     }
 
-    /* BEFORE / AFTER COMPARISON VIEWER */
+    /* BEFORE / AFTER COMPARISON */
     .compare-wrap {
       display: none;
       margin-top: 16px;
@@ -211,6 +196,26 @@
       border-top: 1px solid #1e2a23;
     }
     .compare-wrap.visible { display: block; }
+    .compare-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .zoom-btn {
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid #2e4538;
+      background: #101914;
+      color: var(--matcha);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .zoom-btn.active {
+      background: var(--matcha);
+      color: #05200e;
+    }
     .compare-box {
       position: relative;
       width: 100%;
@@ -221,7 +226,16 @@
       touch-action: none;
       user-select: none;
     }
-    .compare-box img {
+    .compare-inner {
+      position: relative;
+      width: 100%;
+      transition: transform 0.2s ease;
+      transform-origin: center center;
+    }
+    .compare-box.zoomed .compare-inner {
+      transform: scale(2.4);
+    }
+    .compare-inner img {
       display: block;
       width: 100%;
       height: auto;
@@ -246,7 +260,7 @@
       left: 50%;
       width: 2px;
       background: var(--matcha);
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.85);
       pointer-events: none;
     }
     .compare-handle {
@@ -264,7 +278,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
       pointer-events: none;
     }
     .tag-label {
@@ -275,9 +289,10 @@
       font-size: 10.5px;
       font-weight: 700;
       letter-spacing: 0.04em;
-      background: rgba(10, 15, 12, 0.78);
+      background: rgba(10, 15, 12, 0.82);
       border: 1px solid rgba(255, 255, 255, 0.14);
       pointer-events: none;
+      z-index: 2;
     }
     .tag-before { left: 10px; color: #d1d5db; }
     .tag-after { right: 10px; color: var(--matcha); }
@@ -315,82 +330,66 @@
 </head>
 <body>
   <div class="card">
-    <div class="badge">● HD Image Engine</div>
-    <h1>Matcha Photo Upscaler</h1>
-    <p class="sub">Perbesar resolusi foto 2x–4x, pertajam detail buram, dan tingkatkan kejernihan warna langsung di browser.</p>
+    <div class="badge">● AI ESRGAN Neural Engine</div>
+    <h1>Matcha AI Upscaler</h1>
+    <p class="sub">Rekonstruksi detail foto buram &amp; pecah memakai Neural Network ESRGAN langsung di GPU HP kamu.</p>
 
     <div class="dropzone" id="dropzone">
       <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
       <div class="dropzone-title" id="fileLabel">Pilih atau tarik foto ke sini</div>
-      <div class="dropzone-hint">Mendukung JPG, PNG, dan WEBP</div>
+      <div class="dropzone-hint">Paling terasa efeknya pada foto buram, screenshot, atau wajah jarak jauh</div>
     </div>
 
     <div class="res-bar" id="resBar">
       <span id="origRes">0 × 0</span>
-      <span class="arrow">→</span>
+      <span class="arrow">→ AI HD →</span>
       <span id="targetRes">0 × 0 px</span>
     </div>
 
-    <span class="section-label">Skala Upscale</span>
-    <div class="pill-group two" id="scaleGroup">
-      <button type="button" class="pill active" data-scale="2">2x HD</button>
-      <button type="button" class="pill" data-scale="4">4x Ultra HD</button>
+    <span class="section-label">Kekuatan AI Upscale</span>
+    <div class="pill-group" id="passGroup">
+      <button type="button" class="pill active" data-pass="1">2x AI HD (Cepat)</button>
+      <button type="button" class="pill" data-pass="2">4x AI Ultra (2x Pass)</button>
     </div>
 
-    <span class="section-label">Mode Preset</span>
-    <div class="pill-group" id="presetGroup">
-      <button type="button" class="pill active" data-preset="natural">Natural HD</button>
-      <button type="button" class="pill" data-preset="crisp">Anime / Tajam</button>
-      <button type="button" class="pill" data-preset="portrait">Potret Halus</button>
+    <span class="section-label">Optimasi GPU HP (Anti Force-Close)</span>
+    <div class="pill-group" id="limitGroup">
+      <button type="button" class="pill active" data-limit="720">Mode HP (Max 720p Input)</button>
+      <button type="button" class="pill" data-limit="1280">Resolusi Penuh (Lebih Lama)</button>
     </div>
 
-    <div class="sliders">
-      <div class="slider-row">
-        <div class="slider-head">
-          <span>Ketajaman (Unsharp Mask)</span>
-          <span id="valSharp">55%</span>
-        </div>
-        <input type="range" id="inSharp" min="0" max="100" value="55" />
-      </div>
-      <div class="slider-row">
-        <div class="slider-head">
-          <span>Detail &amp; Clarity</span>
-          <span id="valClarity">30%</span>
-        </div>
-        <input type="range" id="inClarity" min="0" max="100" value="30" />
-      </div>
-      <div class="slider-row">
-        <div class="slider-head">
-          <span>Kejernihan Warna (Vibrance)</span>
-          <span id="valVibrance">15%</span>
-        </div>
-        <input type="range" id="inVibrance" min="0" max="60" value="15" />
-      </div>
-    </div>
+    <button type="button" class="primary-btn" id="runBtn" disabled>HD-kan dengan AI ESRGAN</button>
 
-    <button type="button" class="primary-btn" id="runBtn" disabled>HD-kan Foto Sekarang</button>
-    <div class="status-text" id="statusText">Pilih foto dari galeri untuk memulai.</div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="status-text" id="statusText">Menyiapkan mesin AI ESRGAN...</div>
 
     <div class="compare-wrap" id="compareWrap">
-      <span class="section-label">Geser untuk Bandingkan (Before / After)</span>
+      <div class="compare-head">
+        <span class="section-label" style="margin:0;">Geser Garis (Asli vs AI HD)</span>
+        <button type="button" class="zoom-btn" id="zoomBtn">🔍 Zoom 2.4x</button>
+      </div>
       <div class="compare-box" id="compareBox">
-        <img id="imgAfter" alt="Hasil HD" />
-        <div class="compare-before" id="beforeClip">
-          <img id="imgBefore" alt="Foto Asli" />
-        </div>
         <span class="tag-label tag-before">ASLI</span>
-        <span class="tag-label tag-after" id="afterTag">HD 2X</span>
-        <div class="compare-divider" id="compareLine"></div>
-        <div class="compare-handle" id="compareHandle">⇄</div>
+        <span class="tag-label tag-after" id="afterTag">AI ESRGAN</span>
+        <div class="compare-inner" id="compareInner">
+          <img id="imgAfter" alt="Hasil AI HD" />
+          <div class="compare-before" id="beforeClip">
+            <img id="imgBefore" alt="Foto Asli" />
+          </div>
+          <div class="compare-divider" id="compareLine"></div>
+          <div class="compare-handle" id="compareHandle">⇄</div>
+        </div>
       </div>
 
       <div class="dl-grid">
-        <button type="button" class="dl-btn solid" id="dlPngBtn">Unduh PNG (Lossless)</button>
-        <button type="button" class="dl-btn" id="dlJpgBtn">Unduh JPG (HQ 95%)</button>
+        <button type="button" class="dl-btn solid" id="dlPngBtn">Unduh PNG (HD Penuh)</button>
+        <button type="button" class="dl-btn" id="dlJpgBtn">Unduh JPG (HQ 96%)</button>
       </div>
     </div>
 
-    <div class="footer">Matcha Client-Side Image Upscaler • 100% Privasi Lokal</div>
+    <div class="footer">Powered by TensorFlow.js &amp; ESRGAN • Berjalan 100% di Browser</div>
   </div>
 
   <script>
@@ -401,14 +400,9 @@
     const origResEl = document.getElementById("origRes");
     const targetResEl = document.getElementById("targetRes");
     const runBtn = document.getElementById("runBtn");
+    const progressWrap = document.getElementById("progressWrap");
+    const progressBar = document.getElementById("progressBar");
     const statusText = document.getElementById("statusText");
-
-    const inSharp = document.getElementById("inSharp");
-    const inClarity = document.getElementById("inClarity");
-    const inVibrance = document.getElementById("inVibrance");
-    const valSharp = document.getElementById("valSharp");
-    const valClarity = document.getElementById("valClarity");
-    const valVibrance = document.getElementById("valVibrance");
 
     const compareWrap = document.getElementById("compareWrap");
     const compareBox = document.getElementById("compareBox");
@@ -418,71 +412,63 @@
     const imgBefore = document.getElementById("imgBefore");
     const imgAfter = document.getElementById("imgAfter");
     const afterTag = document.getElementById("afterTag");
+    const zoomBtn = document.getElementById("zoomBtn");
 
+    let upscaler = null;
     let loadedImage = null;
     let baseFileName = "photo";
-    let selectedScale = 2;
-    let outputCanvas = null;
+    let aiPasses = 1;
+    let maxInputSide = 720;
+    let finalBlobPng = null;
+    let finalDataUrl = null;
 
-    const PRESETS = {
-      natural: { sharp: 55, clarity: 30, vibrance: 15 },
-      crisp:   { sharp: 85, clarity: 50, vibrance: 25 },
-      portrait:{ sharp: 35, clarity: 15, vibrance: 12 }
-    };
-
-    function syncSliderLabels() {
-      valSharp.textContent = inSharp.value + "%";
-      valClarity.textContent = inClarity.value + "%";
-      valVibrance.textContent = inVibrance.value + "%";
-    }
-
-    [inSharp, inClarity, inVibrance].forEach(el => {
-      el.addEventListener("input", () => {
-        document.querySelectorAll("#presetGroup .pill").forEach(p => p.classList.remove("active"));
-        syncSliderLabels();
-      });
-    });
-
-    document.querySelectorAll("#presetGroup .pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#presetGroup .pill").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        const p = PRESETS[btn.dataset.preset];
-        inSharp.value = p.sharp;
-        inClarity.value = p.clarity;
-        inVibrance.value = p.vibrance;
-        syncSliderLabels();
-      });
-    });
-
-    document.querySelectorAll("#scaleGroup .pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#scaleGroup .pill").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        selectedScale = parseInt(btn.dataset.scale, 10);
-        updateTargetDimensions();
-      });
-    });
-
-    function computeOutputSize(w, h, scale) {
-      const MAX_DIM = 4096;
-      let tw = Math.round(w * scale);
-      let th = Math.round(h * scale);
-      if (tw > MAX_DIM || th > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / tw, MAX_DIM / th);
-        tw = Math.round(tw * ratio);
-        th = Math.round(th * ratio);
+    // Initialize Real AI Model (ESRGAN)
+    window.addEventListener("load", () => {
+      if (typeof Upscaler === "undefined" || typeof DefaultUpscalerJSModel === "undefined") {
+        statusText.textContent = "Gagal memuat model AI (periksa koneksi internet).";
+        return;
       }
-      return { tw, th };
+      try {
+        upscaler = new Upscaler({ model: DefaultUpscalerJSModel });
+        statusText.textContent = "Model AI ESRGAN siap. Pilih foto untuk di-HD-kan.";
+      } catch (e) {
+        statusText.textContent = "Browser tidak mendukung WebGL AI: " + e.message;
+      }
+    });
+
+    document.querySelectorAll("#passGroup .pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#passGroup .pill").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        aiPasses = parseInt(btn.dataset.pass, 10);
+        updateDims();
+      });
+    });
+
+    document.querySelectorAll("#limitGroup .pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#limitGroup .pill").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        maxInputSide = parseInt(btn.dataset.limit, 10);
+        updateDims();
+      });
+    });
+
+    function getPreparedInputSize(w, h) {
+      const longest = Math.max(w, h);
+      if (longest <= maxInputSide) return { iw: w, ih: h };
+      const r = maxInputSide / longest;
+      return { iw: Math.round(w * r), ih: Math.round(h * r) };
     }
 
-    function updateTargetDimensions() {
+    function updateDims() {
       if (!loadedImage) return;
       const w = loadedImage.naturalWidth;
       const h = loadedImage.naturalHeight;
-      const { tw, th } = computeOutputSize(w, h, selectedScale);
+      const { iw, ih } = getPreparedInputSize(w, h);
+      const mult = aiPasses === 2 ? 4 : 2;
       origResEl.textContent = `${w} × ${h}`;
-      targetResEl.textContent = `${tw} × ${th} px`;
+      targetResEl.textContent = `${iw * mult} × ${ih * mult} px`;
       resBar.classList.add("visible");
     }
 
@@ -491,19 +477,19 @@
       baseFileName = file.name.replace(/\.[^/.]+$/, "") || "photo";
       fileLabel.textContent = file.name;
       compareWrap.classList.remove("visible");
-      statusText.textContent = "Memuat gambar...";
+      compareBox.classList.remove("zoomed");
+      zoomBtn.classList.remove("active");
 
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
         loadedImage = img;
         imgBefore.src = url;
-        updateTargetDimensions();
-        runBtn.disabled = false;
-        statusText.textContent = "Siap di-upscale ke HD.";
-      };
-      img.onerror = () => {
-        statusText.textContent = "Gagal membaca file gambar.";
+        updateDims();
+        if (upscaler) {
+          runBtn.disabled = false;
+          statusText.textContent = "Siap diproses dengan AI ESRGAN.";
+        }
       };
       img.src = url;
     }
@@ -517,193 +503,94 @@
       if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
-    // Fast O(N) separable box blur for Unsharp Mask & Clarity
-    function boxBlurSeparable(src, w, h, radius) {
-      const tmp = new Float32Array(w * h * 3);
-      const dst = new Float32Array(w * h * 3);
-      const win = radius * 2 + 1;
-
-      // Horizontal pass
-      for (let y = 0; y < h; y++) {
-        const rowOff = y * w;
-        let rSum = 0, gSum = 0, bSum = 0;
-        for (let i = -radius; i <= radius; i++) {
-          const cx = Math.min(w - 1, Math.max(0, i));
-          const idx = (rowOff + cx) * 4;
-          rSum += src[idx];
-          gSum += src[idx + 1];
-          bSum += src[idx + 2];
-        }
-        for (let x = 0; x < w; x++) {
-          const outIdx = (rowOff + x) * 3;
-          tmp[outIdx] = rSum / win;
-          tmp[outIdx + 1] = gSum / win;
-          tmp[outIdx + 2] = bSum / win;
-
-          const remX = Math.max(0, x - radius);
-          const addX = Math.min(w - 1, x + radius + 1);
-          const remIdx = (rowOff + remX) * 4;
-          const addIdx = (rowOff + addX) * 4;
-          rSum += src[addIdx] - src[remIdx];
-          gSum += src[addIdx + 1] - src[remIdx + 1];
-          bSum += src[addIdx + 2] - src[remIdx + 2];
-        }
-      }
-
-      // Vertical pass
-      for (let x = 0; x < w; x++) {
-        let rSum = 0, gSum = 0, bSum = 0;
-        for (let i = -radius; i <= radius; i++) {
-          const cy = Math.min(h - 1, Math.max(0, i));
-          const idx = (cy * w + x) * 3;
-          rSum += tmp[idx];
-          gSum += tmp[idx + 1];
-          bSum += tmp[idx + 2];
-        }
-        for (let y = 0; y < h; y++) {
-          const outIdx = (y * w + x) * 3;
-          dst[outIdx] = rSum / win;
-          dst[outIdx + 1] = gSum / win;
-          dst[outIdx + 2] = bSum / win;
-
-          const remY = Math.max(0, y - radius);
-          const addY = Math.min(h - 1, y + radius + 1);
-          const remIdx = (remY * w + x) * 3;
-          const addIdx = (addY * w + x) * 3;
-          rSum += tmp[addIdx] - tmp[remIdx];
-          gSum += tmp[addIdx + 1] - tmp[remIdx + 1];
-          bSum += tmp[addIdx + 2] - tmp[remIdx + 2];
-        }
-      }
-      return dst;
-    }
-
-    function steppedUpscale(img, targetW, targetH) {
-      let curCanvas = document.createElement("canvas");
-      curCanvas.width = img.naturalWidth;
-      curCanvas.height = img.naturalHeight;
-      let ctx = curCanvas.getContext("2d");
+    function imageToCanvas(img, tw, th) {
+      const c = document.createElement("canvas");
+      c.width = tw;
+      c.height = th;
+      const ctx = c.getContext("2d");
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0);
-
-      while (curCanvas.width * 1.5 < targetW) {
-        const nextW = Math.round(curCanvas.width * 1.5);
-        const nextH = Math.round(curCanvas.height * 1.5);
-        const nextCanvas = document.createElement("canvas");
-        nextCanvas.width = nextW;
-        nextCanvas.height = nextH;
-        const nCtx = nextCanvas.getContext("2d");
-        nCtx.imageSmoothingEnabled = true;
-        nCtx.imageSmoothingQuality = "high";
-        nCtx.drawImage(curCanvas, 0, 0, nextW, nextH);
-        curCanvas = nextCanvas;
-      }
-
-      const finalCanvas = document.createElement("canvas");
-      finalCanvas.width = targetW;
-      finalCanvas.height = targetH;
-      const fCtx = finalCanvas.getContext("2d");
-      fCtx.imageSmoothingEnabled = true;
-      fCtx.imageSmoothingQuality = "high";
-      fCtx.drawImage(curCanvas, 0, 0, targetW, targetH);
-      return finalCanvas;
+      ctx.drawImage(img, 0, 0, tw, th);
+      return c;
     }
 
-    function enhancePixels(canvas, sharpPct, clarityPct, vibrancePct) {
-      const w = canvas.width;
-      const h = canvas.height;
-      const ctx = canvas.getContext("2d");
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-
-      const sharpAmount = (sharpPct / 100) * 1.45;
-      const clarityAmount = (clarityPct / 100) * 0.45;
-      const vibAmount = (vibrancePct / 100) * 0.85;
-      const threshold = 4; // Suppresses flat-area grain amplification
-
-      const fineBlur = sharpAmount > 0 ? boxBlurSeparable(data, w, h, 1) : null;
-      const wideBlur = clarityAmount > 0 ? boxBlurSeparable(data, w, h, 4) : null;
-
-      for (let i = 0, p = 0; i < data.length; i += 4, p += 3) {
-        let r = data[i];
-        let g = data[i + 1];
-        let b = data[i + 2];
-
-        // 1. Thresholded Unsharp Mask (Edge Crispness)
-        if (fineBlur) {
-          const dr = r - fineBlur[p];
-          const dg = g - fineBlur[p + 1];
-          const db = b - fineBlur[p + 2];
-          if (Math.abs(dr) > threshold) r += dr * sharpAmount;
-          if (Math.abs(dg) > threshold) g += dg * sharpAmount;
-          if (Math.abs(db) > threshold) b += db * sharpAmount;
-        }
-
-        // 2. Local Micro-Contrast (Clarity)
-        if (wideBlur) {
-          r += (r - wideBlur[p]) * clarityAmount;
-          g += (g - wideBlur[p + 1]) * clarityAmount;
-          b += (b - wideBlur[p + 2]) * clarityAmount;
-        }
-
-        // 3. Adaptive Vibrance (Boosts muted colors without clipping skin tones)
-        if (vibAmount > 0) {
-          const maxC = Math.max(r, g, b);
-          const minC = Math.min(r, g, b);
-          const sat = maxC > 0 ? (maxC - minC) / maxC : 0;
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const boost = vibAmount * (1 - sat);
-          r += (r - lum) * boost;
-          g += (g - lum) * boost;
-          b += (b - lum) * boost;
-        }
-
-        data[i] = r < 0 ? 0 : r > 255 ? 255 : r;
-        data[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
-        data[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
-      }
-
-      ctx.putImageData(imgData, 0, 0);
+    function dataUrlToImage(src) {
+      return new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = src;
+      });
     }
 
-    runBtn.addEventListener("click", () => {
-      if (!loadedImage) return;
+    runBtn.addEventListener("click", async () => {
+      if (!loadedImage || !upscaler) return;
       runBtn.disabled = true;
-      statusText.textContent = "Memproses upscale & penajaman HD...";
+      compareWrap.classList.remove("visible");
+      progressWrap.classList.add("visible");
+      progressBar.style.width = "2%";
+      statusText.textContent = "Memuat bobot AI ESRGAN ke GPU...";
 
-      setTimeout(() => {
-        try {
-          const t0 = performance.now();
-          const { tw, th } = computeOutputSize(loadedImage.naturalWidth, loadedImage.naturalHeight, selectedScale);
-          const canvas = steppedUpscale(loadedImage, tw, th);
-          enhancePixels(
-            canvas,
-            parseInt(inSharp.value, 10),
-            parseInt(inClarity.value, 10),
-            parseInt(inVibrance.value, 10)
-          );
-          outputCanvas = canvas;
+      try {
+        const t0 = performance.now();
+        const { iw, ih } = getPreparedInputSize(loadedImage.naturalWidth, loadedImage.naturalHeight);
+        let currentSource = imageToCanvas(loadedImage, iw, ih);
 
-          imgAfter.onload = () => {
-            imgBefore.style.width = compareBox.clientWidth + "px";
-            setSliderPercent(50);
-          };
-          imgAfter.src = canvas.toDataURL("image/png");
-          afterTag.textContent = `HD ${selectedScale}X (${tw}×${th})`;
-          compareWrap.classList.add("visible");
+        // Pass 1: 2x AI Reconstruction
+        let resultSrc = await upscaler.upscale(currentSource, {
+          output: "base64",
+          patchSize: 64,
+          padding: 4,
+          progress: (pct) => {
+            const p = aiPasses === 2 ? Math.round(pct * 50) : Math.round(pct * 100);
+            progressBar.style.width = Math.max(4, p) + "%";
+            statusText.textContent = `AI ESRGAN merekonstruksi detail... ${p}%`;
+          }
+        });
 
-          const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
-          statusText.textContent = `Selesai dalam ${elapsed} detik (${tw} × ${th} px)`;
-        } catch (err) {
-          statusText.textContent = "Gagal memproses gambar (ukuran terlalu besar).";
-        } finally {
-          runBtn.disabled = false;
+        // Pass 2 (Optional 4x): Second AI pass
+        if (aiPasses === 2) {
+          const pass1Img = await dataUrlToImage(resultSrc);
+          resultSrc = await upscaler.upscale(pass1Img, {
+            output: "base64",
+            patchSize: 64,
+            padding: 4,
+            progress: (pct) => {
+              const p = 50 + Math.round(pct * 50);
+              progressBar.style.width = p + "%";
+              statusText.textContent = `AI ESRGAN tahap 2 (4x Ultra)... ${p}%`;
+            }
+          });
         }
-      }, 40);
+
+        finalDataUrl = resultSrc;
+        const finalImg = await dataUrlToImage(resultSrc);
+
+        imgAfter.onload = () => {
+          imgBefore.style.width = compareBox.clientWidth + "px";
+          setSliderPercent(50);
+        };
+        imgAfter.src = resultSrc;
+
+        const mult = aiPasses === 2 ? 4 : 2;
+        afterTag.textContent = `AI ${mult}X (${finalImg.naturalWidth}×${finalImg.naturalHeight})`;
+        compareWrap.classList.add("visible");
+
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+        progressBar.style.width = "100%";
+        statusText.textContent = `Selesai dalam ${elapsed} detik (${finalImg.naturalWidth} × ${finalImg.naturalHeight} px)`;
+      } catch (err) {
+        statusText.textContent = "Error AI GPU: " + (err.message || err);
+      } finally {
+        runBtn.disabled = false;
+      }
     });
 
-    // Interactive Before/After Slider
+    zoomBtn.addEventListener("click", () => {
+      compareBox.classList.toggle("zoomed");
+      zoomBtn.classList.toggle("active");
+    });
+
     function setSliderPercent(pct) {
       const clamped = Math.max(0, Math.min(100, pct));
       beforeClip.style.width = clamped + "%";
@@ -738,20 +625,28 @@
       }
     });
 
-    // Download Handlers
-    function downloadOutput(mime, ext, quality) {
-      if (!outputCanvas) return;
-      outputCanvas.toBlob(blob => {
+    document.getElementById("dlPngBtn").addEventListener("click", () => {
+      if (!finalDataUrl) return;
+      const mult = aiPasses === 2 ? 4 : 2;
+      const a = document.createElement("a");
+      a.href = finalDataUrl;
+      a.download = `${baseFileName}_matcha_AI_${mult}x.png`;
+      a.click();
+    });
+
+    document.getElementById("dlJpgBtn").addEventListener("click", async () => {
+      if (!finalDataUrl) return;
+      const img = await dataUrlToImage(finalDataUrl);
+      const c = imageToCanvas(img, img.naturalWidth, img.naturalHeight);
+      const mult = aiPasses === 2 ? 4 : 2;
+      c.toBlob(blob => {
         if (!blob) return;
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `${baseFileName}_matcha_${selectedScale}x.${ext}`;
+        a.download = `${baseFileName}_matcha_AI_${mult}x.jpg`;
         a.click();
-      }, mime, quality);
-    }
-
-    document.getElementById("dlPngBtn").addEventListener("click", () => downloadOutput("image/png", "png", 1.0));
-    document.getElementById("dlJpgBtn").addEventListener("click", () => downloadOutput("image/jpeg", "jpg", 0.95));
+      }, "image/jpeg", 0.96);
+    });
   </script>
 </body>
 </html>
