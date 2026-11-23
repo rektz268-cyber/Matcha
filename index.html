@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matcha — HQ Video Patcher</title>
+  <title>Matcha — Termux Command Builder</title>
   <style>
     :root {
       --bg: #0c100e;
       --card: #131a16;
+      --panel: #0e1411;
       --border: #233129;
       --matcha: #4ade80;
       --matcha-dark: #16a34a;
       --matcha-glow: rgba(74, 222, 128, 0.14);
+      --danger: #f87171;
       --text: #ecf3ee;
       --muted: #8fa396;
     }
@@ -21,18 +23,18 @@
       color: var(--text);
       margin: 0;
       min-height: 100vh;
-      padding: 24px 16px;
+      padding: 20px 14px 32px;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
     }
     .card {
       width: 100%;
-      max-width: 460px;
+      max-width: 480px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 18px;
-      padding: 24px;
+      padding: 22px 20px;
       box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
     }
     .badge {
@@ -48,860 +50,470 @@
       border: 1px solid rgba(74, 222, 128, 0.28);
       padding: 4px 10px;
       border-radius: 999px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     h1 {
-      margin: 0 0 6px;
-      font-size: 22px;
+      margin: 0 0 4px;
+      font-size: 21px;
       font-weight: 700;
       letter-spacing: -0.02em;
     }
     p.sub {
-      margin: 0 0 20px;
-      font-size: 13px;
-      line-height: 1.5;
+      margin: 0 0 16px;
+      font-size: 12.5px;
+      line-height: 1.45;
       color: var(--muted);
     }
-    .dropzone {
-      position: relative;
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--panel);
+      padding: 5px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 18px;
+    }
+    .tab-btn {
+      padding: 10px 8px;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
+      color: #05200e;
+    }
+    .section { display: none; }
+    .section.active { display: block; }
+    .field { margin-bottom: 14px; }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #c5d6cb;
+      margin-bottom: 6px;
+    }
+    input[type="text"], select {
+      width: 100%;
+      padding: 11px 12px;
+      background: var(--panel);
+      border: 1px solid #28382f;
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: var(--matcha);
+    }
+    .clip-list {
       display: flex;
       flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .clip-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 36px;
+      gap: 8px;
       align-items: center;
-      justify-content: center;
+    }
+    .clip-row input {
       text-align: center;
-      padding: 24px 16px;
-      background: #0e1411;
-      border: 1.5px dashed #2e4237;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      margin-bottom: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
-    .dropzone:hover, .dropzone.dragover {
-      border-color: var(--matcha);
-      background: #121c17;
-    }
-    .dropzone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
+    .del-btn {
+      height: 39px;
+      border: 1px solid #382424;
+      background: #1c1111;
+      color: var(--danger);
+      border-radius: 9px;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
     }
-    .dropzone-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 4px;
+    .del-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
     }
-    .dropzone-hint {
-      font-size: 12px;
-      color: var(--muted);
-    }
-    button {
+    .add-btn {
       width: 100%;
-      padding: 14px;
+      padding: 9px;
+      background: #101914;
+      border: 1px dashed #2e4538;
+      border-radius: 10px;
+      color: var(--matcha);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .add-btn:hover { background: #14221a; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: #c5d6cb;
+      margin-bottom: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check-row input {
+      accent-color: var(--matcha);
+      width: 16px;
+      height: 16px;
+    }
+    .cmd-box {
+      background: #080c0a;
+      border: 1px solid #1d2b23;
+      border-radius: 11px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #86efac;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-bottom: 12px;
+      user-select: all;
+    }
+    .primary-btn {
+      width: 100%;
+      padding: 13px;
       background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
-      color: #06210f;
+      color: #05200e;
       border: none;
       border-radius: 12px;
       font-weight: 700;
       font-size: 14px;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      transition: transform 0.1s, opacity 0.15s;
     }
-    button:active:not(:disabled) { transform: scale(0.99); }
-    button:disabled {
-      background: #1f2b24;
-      color: #5d7064;
-      cursor: not-allowed;
-    }
-    pre {
-      margin: 16px 0 0;
-      padding: 12px 14px;
-      background: #090d0b;
-      border: 1px solid #1b2620;
-      border-radius: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    .primary-btn:active { transform: scale(0.99); }
+    .preset-desc {
       font-size: 12px;
-      line-height: 1.55;
-      color: #86efac;
-      white-space: pre-wrap;
-      word-break: break-word;
-      min-height: 76px;
-    }
-    .studio-wrap {
-      display: none;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid #1e2a23;
-      animation: fadeIn 0.25s ease-out;
-    }
-    .studio-wrap.visible {
-      display: block;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .studio-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 13px 16px;
-      background: #0d1310;
-      color: #ecf3ee;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 14px;
-      border-radius: 12px;
-      border: 1.5px solid var(--matcha);
-      box-shadow: 0 0 18px rgba(74, 222, 128, 0.12);
-      transition: background 0.2s, transform 0.1s;
-    }
-    .studio-btn:hover { background: #14221b; }
-    .studio-btn:active { transform: scale(0.99); }
-    .studio-tip {
-      margin-top: 8px;
-      font-size: 11.5px;
-      line-height: 1.45;
       color: var(--muted);
-      text-align: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      line-height: 1.45;
     }
-    .studio-tip b { color: #bbf7d0; }
+    details.setup {
+      margin-top: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    details.setup summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #b7ccbf;
+    }
+    details.setup code {
+      display: block;
+      margin-top: 8px;
+      padding: 8px;
+      background: #080c0a;
+      border-radius: 7px;
+      color: #86efac;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      word-break: break-all;
+    }
     .footer {
-      margin-top: 16px;
-      text-align: center;
-      font-size: 11px;
-      color: #5c7063;
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid #1b2620;
       display: flex;
-      justify-content: center;
+      justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      font-size: 11.5px;
+      color: #677d70;
     }
     .footer a {
-      color: #7da38b;
-      text-decoration: none;
-    }
-    .footer a:hover {
       color: var(--matcha);
-      text-decoration: underline;
+      text-decoration: none;
+      font-weight: 600;
     }
+    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="badge">● Real-Audio Engine v3</div>
-    <h1>Matcha HQ Patcher</h1>
-    <p class="sub">Pertahankan ketajaman bitrate dan 60 FPS saat upload lewat TikTok Studio Web tanpa kompresi ulang.</p>
+    <div class="badge">● Termux Toolbox</div>
+    <h1>Matcha Command Builder</h1>
+    <p class="sub">Generator perintah yt-dlp clipper &amp; FFmpeg HQ siap salin untuk Termux Android.</p>
 
-    <div class="dropzone" id="dropzone">
-      <input type="file" id="fileInput" accept="video/mp4" />
-      <div class="dropzone-title" id="fileLabel">Pilih atau tarik file MP4 ke sini</div>
-      <div class="dropzone-hint">Wajib MP4 dengan 1 track video + 1 track audio</div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="yt">YT Clipper (yt-dlp)</button>
+      <button class="tab-btn" data-tab="ff">FFmpeg HQ Preset</button>
     </div>
 
-    <button id="runBtn" disabled>Proses Video dengan Matcha</button>
-    <pre id="log">Menunggu file MP4...</pre>
-
-    <div class="studio-wrap" id="studioWrap">
-      <a class="studio-btn" href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">
-        <span>Lanjut Upload ke TikTok Studio Web</span>
-        <span>↗</span>
-      </a>
-      <div class="studio-tip">
-        Tips: Aktifkan <b>Situs desktop</b> di menu browser sebelum mengunggah agar 60 FPS tidak dipangkas.
+    <!-- TAB 1: YT CLIPPER -->
+    <div class="section active" id="tab-yt">
+      <div class="field">
+        <label for="ytUrl">Link Video YouTube</label>
+        <input type="text" id="ytUrl" placeholder="https://youtu.be/..." />
       </div>
+
+      <div class="field">
+        <label>Potongan Timestamp (Mulai — Selesai)</label>
+        <div class="clip-list" id="clipList"></div>
+        <button type="button" class="add-btn" id="addClipBtn">+ Tambah Potongan Klip</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="ytQuality">Format &amp; Kualitas</label>
+          <select id="ytQuality">
+            <option value="mp4">Best MP4 (Siap CapCut/AM)</option>
+            <option value="raw">Max Raw (4K/2K VP9/AV1)</option>
+            <option value="vidonly">Video Only (Tanpa Audio)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ytPrefix">Awalan Nama File</label>
+          <input type="text" id="ytPrefix" value="clip" placeholder="clip" />
+        </div>
+      </div>
+
+      <label class="check-row">
+        <input type="checkbox" id="ytKeyframe" checked />
+        <span>Potong presisi per frame (<code>--force-keyframes-at-cuts</code>)</span>
+      </label>
+
+      <label>Perintah Termux (Otomatis Terupdate)</label>
+      <div class="cmd-box" id="ytCmd"></div>
+      <button type="button" class="primary-btn" id="copyYtBtn">Salin Perintah yt-dlp</button>
+
+      <details class="setup">
+        <summary>Belum install yt-dlp / FFmpeg di Termux?</summary>
+        <code>pkg update -y && pkg install python ffmpeg -y && pip install -U yt-dlp && termux-setup-storage</code>
+      </details>
+    </div>
+
+    <!-- TAB 2: FFMPEG HQ -->
+    <div class="section" id="tab-ff">
+      <div class="field">
+        <label for="ffPreset">Pilih Preset Render</label>
+        <select id="ffPreset">
+          <option value="2k_1080">2K ke 1080p Tajam (Lanczos + CAS Sharpen, CRF 18)</option>
+          <option value="crf14_orig">Ultra HD 60fps CFR (CRF 14 — Resolusi Asli)</option>
+          <option value="scale_1024">Scale 1024x1824 (CRF 14 — 60fps CFR)</option>
+          <option value="h264_1080">H.264 1080p 60fps (Kompatibel Semua Editor, CRF 16)</option>
+          <option value="copy_fast">Remux Cepat + Faststart (Tanpa Re-encode)</option>
+        </select>
+      </div>
+
+      <div class="preset-desc" id="ffDesc"></div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="ffInput">File Input (/sdcard/Download/)</label>
+          <input type="text" id="ffInput" value="input.mp4" />
+        </div>
+        <div class="field">
+          <label for="ffOutput">File Output (/sdcard/Download/)</label>
+          <input type="text" id="ffOutput" value="input_hq.mp4" />
+        </div>
+      </div>
+
+      <label>Perintah FFmpeg Termux</label>
+      <div class="cmd-box" id="ffCmd"></div>
+      <button type="button" class="primary-btn" id="copyFfBtn">Salin Perintah FFmpeg</button>
     </div>
 
     <div class="footer">
-      <span>Matcha Container Patcher</span>
-      <span>•</span>
-      <a href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">TikTok Studio ↗</a>
+      <span>Output: /sdcard/Download</span>
+      <a href="https://www.tiktok.com/tiktokstudio/upload" target="_blank" rel="noopener noreferrer">TikTok Studio Web ↗</a>
     </div>
   </div>
 
   <script>
-    const enc = new TextEncoder();
-
-    function u32(val) {
-      const b = new Uint8Array(4);
-      new DataView(b.buffer).setUint32(0, val >>> 0, false);
-      return b;
-    }
-
-    function strBytes(str) {
-      return enc.encode(str);
-    }
-
-    function hexToBytes(hex) {
-      const out = new Uint8Array(hex.length / 2);
-      for (let i = 0; i < out.length; i++) {
-        out[i] = parseInt(hex.substr(i * 2, 2), 16);
-      }
-      return out;
-    }
-
-    function concatBytes(arrays) {
-      let total = 0;
-      for (const a of arrays) total += a.length;
-      const out = new Uint8Array(total);
-      let offset = 0;
-      for (const a of arrays) {
-        out.set(a, offset);
-        offset += a.length;
-      }
-      return out;
-    }
-
-    function box(type, payload) {
-      return concatBytes([u32(8 + payload.length), strBytes(type), payload]);
-    }
-
-    function fullbox(type, ver, flags, payload) {
-      const vf = ((ver & 0xff) << 24) | (flags & 0xffffff);
-      return box(type, concatBytes([u32(vf), payload]));
-    }
-
-    function parseBoxes(buf, start = 0, end = buf.length) {
-      const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-      const list = [];
-      let pos = start;
-      while (pos + 8 <= end) {
-        let size = view.getUint32(pos, false);
-        const type = String.fromCharCode(buf[pos + 4], buf[pos + 5], buf[pos + 6], buf[pos + 7]);
-        let hdr = 8;
-        if (size === 1) {
-          if (pos + 16 > end) break;
-          size = Number(view.getBigUint64(pos + 8, false));
-          hdr = 16;
-        } else if (size === 0) {
-          size = end - pos;
-        }
-        if (size < hdr || pos + size > end) break;
-        list.push({ type, pos, hdr, size });
-        pos += size;
-      }
-      return list;
-    }
-
-    function getTrakMdhdMs(trakBytes) {
-      for (const b of parseBoxes(trakBytes, 8)) {
-        if (b.type === "mdia") {
-          const mdia = trakBytes.subarray(b.pos, b.pos + b.size);
-          for (const mb of parseBoxes(mdia, 8)) {
-            if (mb.type === "mdhd") {
-              const c = mdia.subarray(mb.pos, mb.pos + mb.size);
-              const v = new DataView(c.buffer, c.byteOffset, c.byteLength);
-              const ver = c[mb.hdr];
-              const ts = ver === 0 ? v.getUint32(mb.hdr + 12, false) : v.getUint32(mb.hdr + 20, false);
-              const dur = ver === 0 ? v.getUint32(mb.hdr + 16, false) : Number(v.getBigUint64(mb.hdr + 24, false));
-              return Math.max(1, Math.round((dur / Math.max(1, ts)) * 1000));
-            }
-          }
-        }
-      }
-      return 18000;
-    }
-
-    function extractTrackSamples(raw, trakBytes) {
-      for (const b of parseBoxes(trakBytes, 8)) {
-        if (b.type !== "mdia") continue;
-        const mdia = trakBytes.subarray(b.pos, b.pos + b.size);
-        for (const mb of parseBoxes(mdia, 8)) {
-          if (mb.type !== "minf") continue;
-          const minf = mdia.subarray(mb.pos, mb.pos + mb.size);
-          for (const nb of parseBoxes(minf, 8)) {
-            if (nb.type !== "stbl") continue;
-            const stbl = minf.subarray(nb.pos, nb.pos + nb.size);
-            let stsz = null, stsc = null, stco = null, co64 = null;
-            for (const sb of parseBoxes(stbl, 8)) {
-              const chunk = stbl.subarray(sb.pos, sb.pos + sb.size);
-              if (sb.type === "stsz") stsz = chunk;
-              else if (sb.type === "stsc") stsc = chunk;
-              else if (sb.type === "stco") stco = chunk;
-              else if (sb.type === "co64") co64 = chunk;
-            }
-            if (!stsz || !stsc || (!stco && !co64)) return [];
-
-            const szView = new DataView(stsz.buffer, stsz.byteOffset, stsz.byteLength);
-            const uniSz = szView.getUint32(12, false);
-            const smpCnt = szView.getUint32(16, false);
-            const sizes = new Array(smpCnt);
-            if (uniSz > 0) {
-              sizes.fill(uniSz);
-            } else {
-              for (let i = 0; i < smpCnt; i++) {
-                sizes[i] = szView.getUint32(20 + i * 4, false);
-              }
-            }
-
-            const scView = new DataView(stsc.buffer, stsc.byteOffset, stsc.byteLength);
-            const scCnt = scView.getUint32(12, false);
-            const scRows = [];
-            for (let i = 0; i < scCnt; i++) {
-              const base = 16 + i * 12;
-              scRows.push({
-                firstChunk: scView.getUint32(base, false),
-                samplesPerChunk: scView.getUint32(base + 4, false)
-              });
-            }
-
-            const chunks = [];
-            if (stco) {
-              const coView = new DataView(stco.buffer, stco.byteOffset, stco.byteLength);
-              const coCnt = coView.getUint32(12, false);
-              for (let i = 0; i < coCnt; i++) chunks.push(coView.getUint32(16 + i * 4, false));
-            } else {
-              const coView = new DataView(co64.buffer, co64.byteOffset, co64.byteLength);
-              const coCnt = coView.getUint32(12, false);
-              for (let i = 0; i < coCnt; i++) chunks.push(Number(coView.getBigUint64(16 + i * 8, false)));
-            }
-
-            const samples = [];
-            let sIdx = 0;
-            let scIdx = 0;
-            for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
-              const cNum = cIdx + 1;
-              while (scIdx + 1 < scRows.length && scRows[scIdx + 1].firstChunk <= cNum) {
-                scIdx++;
-              }
-              const spc = scRows[scIdx].samplesPerChunk;
-              let cur = chunks[cIdx];
-              for (let k = 0; k < spc; k++) {
-                if (sIdx >= sizes.length) break;
-                const sz = sizes[sIdx];
-                samples.push(raw.subarray(cur, cur + sz));
-                cur += sz;
-                sIdx++;
-              }
-            }
-            return samples;
-          }
-        }
-      }
-      return [];
-    }
-
-    function patchVideoStsdBtrt(stsdBytes) {
-      const copy = stsdBytes.slice();
-      const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
-      for (let i = 16; i + 20 <= copy.length; i++) {
-        if (
-          copy[i] === 0x00 && copy[i + 1] === 0x00 && copy[i + 2] === 0x00 && copy[i + 3] === 0x14 &&
-          copy[i + 4] === 0x62 && copy[i + 5] === 0x74 && copy[i + 6] === 0x72 && copy[i + 7] === 0x74
-        ) {
-          const maxBr = view.getUint32(i + 12, false);
-          const avgBr = view.getUint32(i + 16, false);
-          if (avgBr === 0 && maxBr > 0) {
-            view.setUint32(i + 16, maxBr, false);
-          }
-          break;
-        }
-      }
-      return copy;
-    }
-
-    function replaceU32Marker(bytes, markerVal, newVal) {
-      const copy = bytes.slice();
-      const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
-      for (let i = 0; i + 4 <= copy.length; i++) {
-        if (view.getUint32(i, false) === markerVal) {
-          view.setUint32(i, newVal >>> 0, false);
-        }
-      }
-      return copy;
-    }
-
-    function buildStscAndStco(chunkList, baseMdatOffset) {
-      const stscRows = [];
-      let prevSpc = -1;
-      for (let i = 0; i < chunkList.length; i++) {
-        const spc = chunkList[i].samplesCount;
-        if (spc !== prevSpc) {
-          stscRows.push({ firstChunk: i + 1, samplesPerChunk: spc });
-          prevSpc = spc;
-        }
-      }
-
-      const stscPayload = new Uint8Array(4 + stscRows.length * 12);
-      const scv = new DataView(stscPayload.buffer);
-      scv.setUint32(0, stscRows.length, false);
-      for (let i = 0; i < stscRows.length; i++) {
-        const off = 4 + i * 12;
-        scv.setUint32(off, stscRows[i].firstChunk, false);
-        scv.setUint32(off + 4, stscRows[i].samplesPerChunk, false);
-        scv.setUint32(off + 8, 1, false);
-      }
-
-      const stcoPayload = new Uint8Array(4 + chunkList.length * 4);
-      const cov = new DataView(stcoPayload.buffer);
-      cov.setUint32(0, chunkList.length, false);
-      for (let i = 0; i < chunkList.length; i++) {
-        cov.setUint32(4 + i * 4, (baseMdatOffset + chunkList[i].relOffset) >>> 0, false);
-      }
-
-      return {
-        stsc: fullbox("stsc", 0, 0, stscPayload),
-        stco: fullbox("stco", 0, 0, stcoPayload)
-      };
-    }
-
-    function patchEdts(edtsBytes, targetMs) {
-      const parts = [];
-      for (const b of parseBoxes(edtsBytes, 8)) {
-        const chunk = edtsBytes.slice(b.pos, b.pos + b.size);
-        if (b.type === "elst") {
-          const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-          const ver = chunk[b.hdr];
-          const cnt = view.getUint32(b.hdr + 4, false);
-          if (cnt >= 1) {
-            if (ver === 0) view.setUint32(b.hdr + 8, targetMs >>> 0, false);
-            else view.setBigUint64(b.hdr + 8, BigInt(targetMs), false);
-          }
-        }
-        parts.push(chunk);
-      }
-      return box("edts", concatBytes(parts));
-    }
-
-    function patchStblInterleaved(stblBytes, newStsc, newStco, patchBtrt) {
-      const parts = [];
-      for (const b of parseBoxes(stblBytes, 8)) {
-        const slice = stblBytes.subarray(b.pos, b.pos + b.size);
-        if (b.type === "stsc") parts.push(newStsc);
-        else if (b.type === "stco") parts.push(newStco);
-        else if (b.type === "co64") continue;
-        else if (b.type === "stsd" && patchBtrt) parts.push(patchVideoStsdBtrt(slice));
-        else parts.push(slice);
-      }
-      return box("stbl", concatBytes(parts));
-    }
-
-    function patchMinfInterleaved(minfBytes, newStsc, newStco, patchBtrt) {
-      const parts = [];
-      for (const b of parseBoxes(minfBytes, 8)) {
-        const slice = minfBytes.subarray(b.pos, b.pos + b.size);
-        parts.push(b.type === "stbl" ? patchStblInterleaved(slice, newStsc, newStco, patchBtrt) : slice);
-      }
-      return box("minf", concatBytes(parts));
-    }
-
-    function patchMdiaInterleaved(mdiaBytes, newStsc, newStco, patchBtrt) {
-      const parts = [];
-      for (const b of parseBoxes(mdiaBytes, 8)) {
-        const slice = mdiaBytes.subarray(b.pos, b.pos + b.size);
-        parts.push(b.type === "minf" ? patchMinfInterleaved(slice, newStsc, newStco, patchBtrt) : slice);
-      }
-      return box("mdia", concatBytes(parts));
-    }
-
-    function patchTrakInterleaved(trakBytes, newTrackId, altGroup, targetMs, newStsc, newStco, patchBtrt) {
-      const parts = [];
-      for (const b of parseBoxes(trakBytes, 8)) {
-        const chunk = trakBytes.slice(b.pos, b.pos + b.size);
-        const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-        if (b.type === "tkhd") {
-          const ver = chunk[b.hdr];
-          if (ver === 0) {
-            view.setUint32(b.hdr + 12, newTrackId, false);
-            view.setUint32(b.hdr + 20, targetMs >>> 0, false);
-            view.setUint16(b.hdr + 34, altGroup, false);
-          } else {
-            view.setUint32(b.hdr + 20, newTrackId, false);
-            view.setBigUint64(b.hdr + 28, BigInt(targetMs), false);
-            view.setUint16(b.hdr + 46, altGroup, false);
-          }
-          parts.push(chunk);
-        } else if (b.type === "edts") {
-          parts.push(patchEdts(chunk, targetMs));
-        } else if (b.type === "mdia") {
-          parts.push(patchMdiaInterleaved(chunk, newStsc, newStco, patchBtrt));
-        } else {
-          parts.push(chunk);
-        }
-      }
-      return box("trak", concatBytes(parts));
-    }
-
-    const STSD_TRAK2_44K = hexToBytes(
-      "0000007e737473640000000000000001" +
-      "0000006e6d703461000000000000000100000000000000000002001000000000ac440000" +
-      "0000003665736473000000000380808025000200048080801740150000000002024b0002024b0580808005121056e500068080800102" +
-      "0000001462747274000000000002024b0002024b"
-    );
-
-    const STSD_TRAK3_DUAL = hexToBytes(
-      "000000ef737473640000000000000002" +
-      "0000006e6d703461000000000000000100000000000000000002001000000000bb800000" +
-      "0000003665736473000000000380808025000300048080801740150000000003b83b0003b83b0580808005119056e500068080800102" +
-      "0000001462747274000000000003b83b0003b83b" +
-      "000000716d703461000000000000000100000000000000000002001000000000bb800000" +
-      "0000003965736473000000000380808028000300048080801a40150000000003b83b0003b83b0580808008118004c040002000068080800102" +
-      "0000001462747274000000000003b83b0003b83b"
-    );
-
-    const STSD_TRAK4_SINGLE = hexToBytes(
-      "0000007e737473640000000000000001" +
-      "0000006e6d703461000000000000000100000000000000000002001000000000bb800000" +
-      "0000003665736473000000000380808025000300048080801740150000000003b83b0003b83b0580808005119056e500068080800102" +
-      "0000001462747274000000000003b83b0003b83b"
-    );
-
-    function buildAudioTrak(trackId, altGroup, durMs, sampleRate, numFrames, frameSizes, newStsc, newStco, stsdBox) {
-      const tkhdPayload = new Uint8Array(80);
-      const tv = new DataView(tkhdPayload.buffer);
-      tv.setUint32(8, trackId, false);
-      tv.setUint32(16, durMs, false);
-      tv.setUint16(30, altGroup, false);
-      tv.setUint16(32, 0x0100, false);
-      tv.setUint32(36, 0x00010000, false);
-      tv.setUint32(52, 0x00010000, false);
-      tv.setUint32(68, 0x40000000, false);
-      const tkhd = fullbox("tkhd", 0, 3, tkhdPayload);
-
-      const elstPayload = new Uint8Array(16);
-      const ev = new DataView(elstPayload.buffer);
-      ev.setUint32(0, 1, false);
-      ev.setUint32(4, Math.max(1, durMs - 1), false);
-      ev.setInt32(8, 1024, false);
-      ev.setInt16(12, 1, false);
-      const edts = box("edts", fullbox("elst", 0, 0, elstPayload));
-
-      const mdhdPayload = new Uint8Array(20);
-      const mv = new DataView(mdhdPayload.buffer);
-      mv.setUint32(8, sampleRate, false);
-      mv.setUint32(12, numFrames * 1024, false);
-      mv.setUint16(16, 0x55C4, false);
-      const mdhd = fullbox("mdhd", 0, 0, mdhdPayload);
-
-      const hdlr = fullbox("hdlr", 0, 0, concatBytes([u32(0), strBytes("soun"), new Uint8Array(12), strBytes("SoundHandler\0")]));
-      const smhd = fullbox("smhd", 0, 0, new Uint8Array(4));
-      const dref = fullbox("dref", 0, 0, concatBytes([u32(1), fullbox("url ", 0, 1, new Uint8Array(0))]));
-      const dinf = box("dinf", dref);
-
-      const stts = fullbox("stts", 0, 0, concatBytes([u32(1), u32(numFrames), u32(1024)]));
-
-      const stszPayload = new Uint8Array(8 + numFrames * 4);
-      const szv = new DataView(stszPayload.buffer);
-      szv.setUint32(4, numFrames, false);
-      for (let i = 0; i < numFrames; i++) {
-        szv.setUint32(8 + i * 4, frameSizes[i], false);
-      }
-      const stsz = fullbox("stsz", 0, 0, stszPayload);
-
-      const sgpdPayload = new Uint8Array(14);
-      const sgv = new DataView(sgpdPayload.buffer);
-      sgpdPayload.set(strBytes("roll"), 0);
-      sgv.setUint32(4, 2, false);
-      sgv.setUint32(8, 1, false);
-      sgv.setInt16(12, -1, false);
-      const sgpd = fullbox("sgpd", 1, 0, sgpdPayload);
-
-      const sbgp = fullbox("sbgp", 0, 0, concatBytes([strBytes("roll"), u32(1), u32(numFrames), u32(1)]));
-
-      const stbl = box("stbl", concatBytes([stsdBox, stts, newStsc, stsz, newStco, sgpd, sbgp]));
-      const minf = box("minf", concatBytes([smhd, dinf, stbl]));
-      const mdia = box("mdia", concatBytes([mdhd, hdlr, minf]));
-      return box("trak", concatBytes([tkhd, edts, mdia]));
-    }
-
-    function buildUdtaMeta() {
-      const hdlr = fullbox("hdlr", 0, 0, concatBytes([u32(0), strBytes("mdta"), new Uint8Array(13)]));
-      const keyNames = [
-        "major_brand", "minor_version", "compatible_brands",
-        "te_is_reencode", "artist", "comment", "encoder"
-      ];
-      const keyEntries = keyNames.map(k => concatBytes([u32(8 + k.length), strBytes("mdta"), strBytes(k)]));
-      const keys = fullbox("keys", 0, 0, concatBytes([u32(keyNames.length), ...keyEntries]));
-
-      const items = [
-        [1, strBytes("isom")],
-        [1, strBytes("512")],
-        [1, strBytes("isomiso2mp41")],
-        [1, strBytes("1")],
-        [1, strBytes("Matcha")],
-        [1, strBytes("Patched by Matcha")],
-        [1, strBytes("Lavf59.27.100")]
-      ];
-
-      const ilstParts = items.map(([dtype, val], i) => {
-        const dataBox = box("data", concatBytes([u32(dtype), u32(0), val]));
-        return box(String.fromCharCode(0, 0, 0, i + 1), dataBox);
+    // Tab switcher
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
       });
-      const ilst = box("ilst", concatBytes(ilstParts));
-      const meta = fullbox("meta", 0, 0, concatBytes([hdlr, keys, ilst]));
-      return box("udta", meta);
-    }
+    });
 
-    async function encodeRealAacTracks(arrayBuffer, vidDurMs, matchaDurMs) {
-      if (typeof AudioEncoder === "undefined" || typeof AudioData === "undefined") {
-        return null;
-      }
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return null;
-
-      const actx = new AudioCtx();
-      let decoded;
+    // Clipboard helper with fallback
+    async function copyText(text, btn, defaultLabel) {
       try {
-        decoded = await actx.decodeAudioData(arrayBuffer.slice(0));
-      } finally {
-        await actx.close();
-      }
-
-      async function renderResampled(targetRate, totalMs) {
-        const totalSamples = Math.ceil((totalMs / 1000) * targetRate);
-        const off = new OfflineAudioContext(2, totalSamples, targetRate);
-        const src = off.createBufferSource();
-        src.buffer = decoded;
-        src.connect(off.destination);
-        src.start(0);
-        return await off.startRendering();
-      }
-
-      async function encodeBuffer(audioBuf, rate, bitrate) {
-        const frames = [];
-        const encoder = new AudioEncoder({
-          output: (chunk) => {
-            const bytes = new Uint8Array(chunk.byteLength);
-            chunk.copyTo(bytes);
-            frames.push(bytes);
-          },
-          error: (err) => { throw err; }
-        });
-        encoder.configure({
-          codec: "mp4a.40.2",
-          sampleRate: rate,
-          numberOfChannels: 2,
-          bitrate: bitrate
-        });
-
-        const ch0 = audioBuf.getChannelData(0);
-        const ch1 = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : ch0;
-        const lenTotal = audioBuf.length;
-        for (let off = 0; off < lenTotal; off += 1024) {
-          const n = Math.min(1024, lenTotal - off);
-          const planar = new Float32Array(n * 2);
-          planar.set(ch0.subarray(off, off + n), 0);
-          planar.set(ch1.subarray(off, off + n), n);
-          const ad = new AudioData({
-            format: "f32-planar",
-            sampleRate: rate,
-            numberOfChannels: 2,
-            timestamp: Math.round((off / rate) * 1000000),
-            data: planar
-          });
-          encoder.encode(ad);
-          ad.close();
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
         }
-        await encoder.flush();
-        encoder.close();
-
-        const totalBytes = frames.reduce((s, f) => s + f.length, 0);
-        const durSec = (frames.length * 1024) / rate;
-        const avgBitrate = Math.max(64000, Math.round((totalBytes * 8) / durSec));
-        return { samples: frames, sizes: frames.map(f => f.length), avgBitrate };
-      }
-
-      const buf44 = await renderResampled(44100, vidDurMs);
-      const buf48 = await renderResampled(48000, matchaDurMs);
-
-      const track2Enc = await encodeBuffer(buf44, 44100, 132000);
-      const track34Enc = await encodeBuffer(buf48, 48000, 244000);
-      return { track2Enc, track34Enc };
-    }
-
-    async function patchMatchaMP4(arrayBuffer) {
-      const raw = new Uint8Array(arrayBuffer);
-      const top = parseBoxes(raw);
-      const moovInfo = top.find(b => b.type === "moov");
-      const mdatInfo = top.find(b => b.type === "mdat");
-      if (!moovInfo || !mdatInfo) throw new Error("Atom moov atau mdat tidak ditemukan.");
-
-      const moovBytes = raw.subarray(moovInfo.pos, moovInfo.pos + moovInfo.size);
-      const origTraks = parseBoxes(moovBytes, 8)
-        .filter(b => b.type === "trak")
-        .map(b => moovBytes.subarray(b.pos, b.pos + b.size));
-
-      if (origTraks.length < 2) {
-        throw new Error("Video wajib memiliki minimal 1 track video dan 1 track audio.");
-      }
-
-      const trakMsList = origTraks.map(getTrakMdhdMs);
-      const vidDurMs = trakMsList[0];
-      const matchaDurMs = vidDurMs + 370;
-
-      const vidSamples = extractTrackSamples(raw, origTraks[0]);
-      const origAudSamples = extractTrackSamples(raw, origTraks[1]);
-      if (!vidSamples.length || !origAudSamples.length) {
-        throw new Error("Gagal mengekstrak sample video/audio asli.");
-      }
-
-      // Encode suara asli ke AAC 44.1kHz (Track #2) & AAC 48kHz +370ms (Track #3 & #4)
-      let encoded = null;
-      try {
-        encoded = await encodeRealAacTracks(arrayBuffer, vidDurMs, matchaDurMs);
+        btn.textContent = "✓ Tersalin ke Clipboard!";
+        setTimeout(() => { btn.textContent = defaultLabel; }, 1600);
       } catch (e) {
-        encoded = null;
-      }
-
-      let aud2Samples, aac34Samples, aac34Sizes, stsd2, stsd3, stsd4, useCustomTrak2;
-
-      if (encoded && encoded.track2Enc.samples.length && encoded.track34Enc.samples.length) {
-        useCustomTrak2 = true;
-        aud2Samples = encoded.track2Enc.samples;
-        aac34Samples = encoded.track34Enc.samples;
-        aac34Sizes = encoded.track34Enc.sizes;
-        stsd2 = replaceU32Marker(STSD_TRAK2_44K, 0x0002024b, encoded.track2Enc.avgBitrate);
-        stsd3 = replaceU32Marker(STSD_TRAK3_DUAL, 0x0003b83b, encoded.track34Enc.avgBitrate);
-        stsd4 = replaceU32Marker(STSD_TRAK4_SINGLE, 0x0003b83b, encoded.track34Enc.avgBitrate);
-      } else {
-        // Fallback aman: kloning sample AAC asli + frame sunyi AAC valid (6 byte) tanpa padding nol
-        useCustomTrak2 = false;
-        aud2Samples = origAudSamples;
-        const targetFrames = Math.ceil((matchaDurMs / 1000) * 48000 / 1024);
-        const padFrames = Math.max(1, targetFrames - origAudSamples.length);
-        const validSilentAac = hexToBytes("211004608c1c");
-        aac34Samples = [...origAudSamples];
-        for (let i = 0; i < padFrames; i++) aac34Samples.push(validSilentAac);
-        aac34Sizes = aac34Samples.map(s => s.length);
-        const totalBytes = aac34Samples.reduce((s, f) => s + f.length, 0);
-        const fallbackBr = Math.round((totalBytes * 8) / ((aac34Samples.length * 1024) / 48000));
-        stsd3 = replaceU32Marker(STSD_TRAK3_DUAL, 0x0003b83b, fallbackBr);
-        stsd4 = replaceU32Marker(STSD_TRAK4_SINGLE, 0x0003b83b, fallbackBr);
-      }
-
-      const buckets = Math.max(1, Math.ceil(vidDurMs / 250));
-      const mdatChunks = [];
-      const t1Chunks = [], t2Chunks = [], t34Chunks = [];
-      let relPos = 0;
-
-      for (let b = 0; b < buckets; b++) {
-        const v0 = Math.floor((b * vidSamples.length) / buckets);
-        const v1 = Math.floor(((b + 1) * vidSamples.length) / buckets);
-        if (v1 > v0) {
-          t1Chunks.push({ relOffset: relPos, samplesCount: v1 - v0 });
-          for (let i = v0; i < v1; i++) { mdatChunks.push(vidSamples[i]); relPos += vidSamples[i].length; }
-        }
-
-        const a20 = Math.floor((b * aud2Samples.length) / buckets);
-        const a21 = Math.floor(((b + 1) * aud2Samples.length) / buckets);
-        if (a21 > a20) {
-          t2Chunks.push({ relOffset: relPos, samplesCount: a21 - a20 });
-          for (let i = a20; i < a21; i++) { mdatChunks.push(aud2Samples[i]); relPos += aud2Samples[i].length; }
-        }
-
-        // Track #3 dan Track #4 berbagi offset chunk yang sama persis di mdat
-        const a30 = Math.floor((b * aac34Samples.length) / buckets);
-        const a31 = Math.floor(((b + 1) * aac34Samples.length) / buckets);
-        if (a31 > a30) {
-          t34Chunks.push({ relOffset: relPos, samplesCount: a31 - a30 });
-          for (let i = a30; i < a31; i++) { mdatChunks.push(aac34Samples[i]); relPos += aac34Samples[i].length; }
-        }
-      }
-
-      const ftypBox = box("ftyp", concatBytes([strBytes("isom"), u32(512), strBytes("isomiso2mp41")]));
-      const udtaBox = buildUdtaMeta();
-
-      const mvhdPayload = new Uint8Array(96);
-      const mv = new DataView(mvhdPayload.buffer);
-      mv.setUint32(8, 1000, false);
-      mv.setUint32(12, matchaDurMs, false);
-      mv.setUint32(16, 0x00010000, false);
-      mv.setUint16(20, 0x0100, false);
-      mv.setUint32(32, 0x00010000, false);
-      mv.setUint32(48, 0x00010000, false);
-      mv.setUint32(64, 0x40000000, false);
-      const mvhdBox = fullbox("mvhd", 0, 0, mvhdPayload);
-
-      const assembleMoov = (baseMdatOffset) => {
-        const s1 = buildStscAndStco(t1Chunks, baseMdatOffset);
-        const s2 = buildStscAndStco(t2Chunks, baseMdatOffset);
-        const s34 = buildStscAndStco(t34Chunks, baseMdatOffset);
-
-        const trak1 = patchTrakInterleaved(origTraks[0], 1, 0, trakMsList[0], s1.stsc, s1.stco, true);
-        const trak2 = useCustomTrak2
-          ? buildAudioTrak(2, 1, trakMsList[1], 44100, aud2Samples.length, aud2Samples.map(s => s.length), s2.stsc, s2.stco, stsd2)
-          : patchTrakInterleaved(origTraks[1], 2, 1, trakMsList[1], s2.stsc, s2.stco, false);
-        const trak3 = buildAudioTrak(3, 2, matchaDurMs, 48000, aac34Samples.length, aac34Sizes, s34.stsc, s34.stco, stsd3);
-        const trak4 = buildAudioTrak(4, 2, matchaDurMs, 48000, aac34Samples.length, aac34Sizes, s34.stsc, s34.stco, stsd4);
-        return box("moov", concatBytes([mvhdBox, trak1, trak2, trak3, trak4, udtaBox]));
-      };
-
-      const dummyMoov = assembleMoov(0);
-      const newMdat1PayloadStart = ftypBox.length + dummyMoov.length + 8;
-      const finalMoov = assembleMoov(newMdat1PayloadStart);
-
-      const mdat1 = box("mdat", concatBytes(mdatChunks));
-      const mdat2 = box("mdat", hexToBytes("211004608c1c".repeat(17)));
-
-      return {
-        blob: new Blob([ftypBox, finalMoov, mdat1, mdat2], { type: "video/mp4" }),
-        vidDurMs,
-        matchaDurMs,
-        mode: useCustomTrak2 ? "WebCodecs AAC 48kHz + 44.1kHz" : "Stream-Clone AAC"
-      };
-    }
-
-    const fileInput = document.getElementById("fileInput");
-    const fileLabel = document.getElementById("fileLabel");
-    const dropzone = document.getElementById("dropzone");
-    const runBtn = document.getElementById("runBtn");
-    const log = document.getElementById("log");
-    const studioWrap = document.getElementById("studioWrap");
-
-    function updateFileUI() {
-      studioWrap.classList.remove("visible");
-      if (fileInput.files.length) {
-        const f = fileInput.files[0];
-        fileLabel.textContent = f.name;
-        runBtn.disabled = false;
-        log.textContent = `Siap diproses: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
-      } else {
-        fileLabel.textContent = "Pilih atau tarik file MP4 ke sini";
-        runBtn.disabled = true;
+        btn.textContent = "Gagal salin — tahan teks di atas";
+        setTimeout(() => { btn.textContent = defaultLabel; }, 2000);
       }
     }
 
-    fileInput.addEventListener("change", updateFileUI);
-    dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
-    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-    dropzone.addEventListener("drop", e => {
-      e.preventDefault();
-      dropzone.classList.remove("dragover");
-      if (e.dataTransfer.files.length) {
-        fileInput.files = e.dataTransfer.files;
-        updateFileUI();
+    // --- TAB 1: YT-DLP BUILDER ---
+    const clipList = document.getElementById("clipList");
+    const ytUrl = document.getElementById("ytUrl");
+    const ytQuality = document.getElementById("ytQuality");
+    const ytPrefix = document.getElementById("ytPrefix");
+    const ytKeyframe = document.getElementById("ytKeyframe");
+    const ytCmd = document.getElementById("ytCmd");
+
+    let clips = [{ start: "00:15", end: "00:28" }];
+
+    function renderClips() {
+      clipList.innerHTML = "";
+      clips.forEach((c, idx) => {
+        const row = document.createElement("div");
+        row.className = "clip-row";
+
+        const inStart = document.createElement("input");
+        inStart.type = "text";
+        inStart.placeholder = "00:00";
+        inStart.value = c.start;
+        inStart.addEventListener("input", e => { clips[idx].start = e.target.value; updateYtCmd(); });
+
+        const inEnd = document.createElement("input");
+        inEnd.type = "text";
+        inEnd.placeholder = "00:15";
+        inEnd.value = c.end;
+        inEnd.addEventListener("input", e => { clips[idx].end = e.target.value; updateYtCmd(); });
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "del-btn";
+        delBtn.textContent = "×";
+        delBtn.disabled = clips.length === 1;
+        delBtn.addEventListener("click", () => {
+          clips.splice(idx, 1);
+          renderClips();
+          updateYtCmd();
+        });
+
+        row.append(inStart, inEnd, delBtn);
+        clipList.appendChild(row);
+      });
+    }
+
+    function updateYtCmd() {
+      const url = ytUrl.value.trim() || "https://youtu.be/LINK_VIDEO";
+      const prefix = (ytPrefix.value.trim() || "clip").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const sections = clips
+        .filter(c => c.start.trim() && c.end.trim())
+        .map(c => `--download-sections "*${c.start.trim()}-${c.end.trim()}"`)
+        .join(" ");
+
+      const kf = ytKeyframe.checked ? " --force-keyframes-at-cuts" : "";
+      let fmt = '-f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b" --merge-output-format mp4';
+      if (ytQuality.value === "raw") {
+        fmt = '-f "bv*+ba/b" --merge-output-format mkv';
+      } else if (ytQuality.value === "vidonly") {
+        fmt = '-f "bv*[ext=mp4]/bv*"';
       }
+
+      const outTpl = `/sdcard/Download/${prefix}_%(autonumber)02d.%(ext)s`;
+      ytCmd.textContent = `yt-dlp ${sections || '--download-sections "*00:15-00:28"'}${kf} ${fmt} -o "${outTpl}" "${url}"`;
+    }
+
+    document.getElementById("addClipBtn").addEventListener("click", () => {
+      clips.push({ start: "", end: "" });
+      renderClips();
+      updateYtCmd();
     });
 
-    runBtn.addEventListener("click", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      runBtn.disabled = true;
-      studioWrap.classList.remove("visible");
-      log.textContent = "Meng-encode audio & menyusun container Matcha...";
-      try {
-        const buf = await file.arrayBuffer();
-        const res = await patchMatchaMP4(buf);
-        const outName = file.name.replace(/\.mp4$/i, "") + "_matcha.mp4";
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(res.blob);
-        a.download = outName;
-        a.click();
-        log.textContent =
-          `[OK] Selesai dipatch (v3)!\n` +
-          `Output : ${outName}\n` +
-          `Durasi : ${(res.vidDurMs / 1000).toFixed(3)}s -> ${(res.matchaDurMs / 1000).toFixed(3)}s\n` +
-          `Audio  : ${res.mode}`;
-        studioWrap.classList.add("visible");
-      } catch (err) {
-        log.textContent = `[ERROR] ${err.message}`;
-      } finally {
-        runBtn.disabled = false;
-      }
+    [ytUrl, ytQuality, ytPrefix].forEach(el => el.addEventListener("input", updateYtCmd));
+    ytKeyframe.addEventListener("change", updateYtCmd);
+    document.getElementById("copyYtBtn").addEventListener("click", function () {
+      copyText(ytCmd.textContent, this, "Salin Perintah yt-dlp");
     });
+
+    renderClips();
+    updateYtCmd();
+
+    // --- TAB 2: FFMPEG PRESETS ---
+    const PRESETS = {
+      "2k_1080": {
+        desc: "Downscale 2K ke 1080x1920 dengan filter Lanczos + penajaman CAS 0.5, codec HEVC (hvc1) CRF 18, 60 FPS konstan.",
+        build: (inp, out) =>
+          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1080:1920:flags=lanczos,cas=0.5,setsar=1" -c:v libx265 -crf 18 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
+      },
+      "crf14_orig": {
+        desc: "Pertahankan resolusi asli video dengan bitrate tinggi HEVC (hvc1) CRF 14 dan frame rate terkunci di 60 FPS CFR.",
+        build: (inp, out) =>
+          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "setsar=1" -c:v libx265 -crf 14 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
+      },
+      "scale_1024": {
+        desc: "Skala 1024x1824 (rasio 9:16) memakai Lanczos dan HEVC CRF 14 pada 60 FPS CFR.",
+        build: (inp, out) =>
+          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1024:1824:flags=lanczos,setsar=1" -c:v libx265 -crf 14 -preset medium -pix_fmt yuv420p -tag:v hvc1 -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
+      },
+      "h264_1080": {
+        desc: "Render H.264 High Profile 1080x1920 60 FPS (paling ringan dibuka di CapCut & Alight Motion tanpa lag).",
+        build: (inp, out) =>
+          `ffmpeg -y -i "/sdcard/Download/${inp}" -vf "scale=1080:1920:flags=lanczos,setsar=1" -c:v libx264 -profile:v high -level 4.2 -crf 16 -preset medium -pix_fmt yuv420p -fps_mode cfr -r 60 -c:a aac -b:a 192k "/sdcard/Download/${out}"`
+      },
+      "copy_fast": {
+        desc: "Salin stream video & audio 100% asli tanpa kompresi ulang (-c copy) dan pindahkan header moov ke depan (+faststart).",
+        build: (inp, out) =>
+          `ffmpeg -y -i "/sdcard/Download/${inp}" -c copy -movflags +faststart "/sdcard/Download/${out}"`
+      }
+    };
+
+    const ffPreset = document.getElementById("ffPreset");
+    const ffDesc = document.getElementById("ffDesc");
+    const ffInput = document.getElementById("ffInput");
+    const ffOutput = document.getElementById("ffOutput");
+    const ffCmd = document.getElementById("ffCmd");
+
+    function updateFfCmd() {
+      const p = PRESETS[ffPreset.value];
+      const inp = ffInput.value.trim() || "input.mp4";
+      const out = ffOutput.value.trim() || "input_hq.mp4";
+      ffDesc.textContent = p.desc;
+      ffCmd.textContent = p.build(inp, out);
+    }
+
+    ffInput.addEventListener("input", () => {
+      const base = ffInput.value.trim().replace(/\.[^/.]+$/, "");
+      if (base) ffOutput.value = base + "_hq.mp4";
+      updateFfCmd();
+    });
+    ffPreset.addEventListener("change", updateFfCmd);
+    ffOutput.addEventListener("input", updateFfCmd);
+    document.getElementById("copyFfBtn").addEventListener("click", function () {
+      copyText(ffCmd.textContent, this, "Salin Perintah FFmpeg");
+    });
+
+    updateFfCmd();
   </script>
 </body>
 </html>
