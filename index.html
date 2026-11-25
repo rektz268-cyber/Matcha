@@ -3,650 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Matcha — AI Photo Upscaler</title>
-  <!-- TensorFlow.js & ESRGAN Neural Network Model -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@upscalerjs/default-model@1.0.0-beta.13/dist/umd/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/upscaler@1.0.0-beta.19/dist/browser/umd/upscaler.min.js"></script>
+  <title>TikTok Video Analytics & Checker</title>
   <style>
     :root {
-      --bg: #0c100e;
-      --card: #131a16;
-      --panel: #0e1411;
-      --border: #233129;
-      --matcha: #4ade80;
-      --matcha-dark: #16a34a;
-      --matcha-glow: rgba(74, 222, 128, 0.14);
-      --text: #ecf3ee;
-      --muted: #8fa396;
+      --bg: #0f1117;
+      --card: #181b24;
+      --border: #2a2f3d;
+      --text: #e6e8ef;
+      --muted: #949ba8;
+      --accent: #00f2ea;
+      --accent2: #ff0050;
     }
-    * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body {
-      background: radial-gradient(circle at top, #15221b 0%, var(--bg) 60%);
-      color: var(--text);
-      margin: 0;
-      min-height: 100vh;
-      padding: 20px 14px 36px;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 640px; }
+    h2 { margin: 0 0 14px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+    .input-box { display: flex; gap: 8px; margin-bottom: 18px; }
+    input {
+      flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text); font-size: 14px; outline: none;
     }
-    .card {
-      width: 100%;
-      max-width: 500px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 22px 20px;
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+    input:focus { border-color: var(--accent); }
+    button {
+      padding: 12px 18px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #00b8b2); color: #091014;
     }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--matcha);
-      background: var(--matcha-glow);
-      border: 1px solid rgba(74, 222, 128, 0.28);
-      padding: 4px 10px;
-      border-radius: 999px;
-      margin-bottom: 10px;
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .report {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px; white-space: pre-wrap; font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px; line-height: 1.6; display: none;
     }
-    h1 {
-      margin: 0 0 4px;
-      font-size: 21px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
+    .copy-btn {
+      margin-top: 10px; background: #252a37; color: var(--text); font-size: 12px; padding: 8px 14px;
     }
-    p.sub {
-      margin: 0 0 16px;
-      font-size: 12.5px;
-      line-height: 1.45;
-      color: var(--muted);
-    }
-    .dropzone {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 22px 14px;
-      background: var(--panel);
-      border: 1.5px dashed #2e4237;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      margin-bottom: 14px;
-    }
-    .dropzone:hover, .dropzone.dragover {
-      border-color: var(--matcha);
-      background: #121c17;
-    }
-    .dropzone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .dropzone-title {
-      font-size: 13.5px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 3px;
-    }
-    .dropzone-hint {
-      font-size: 11.5px;
-      color: var(--muted);
-    }
-    .res-bar {
-      display: none;
-      justify-content: space-between;
-      align-items: center;
-      background: #0a0f0c;
-      border: 1px solid #1e2b23;
-      border-radius: 10px;
-      padding: 9px 12px;
-      font-size: 12px;
-      margin-bottom: 14px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    .res-bar.visible { display: flex; }
-    .res-bar span.arrow { color: var(--matcha); font-weight: 700; }
-
-    .section-label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: #c5d6cb;
-      margin-bottom: 6px;
-    }
-    .pill-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .pill {
-      padding: 10px 8px;
-      background: var(--panel);
-      border: 1px solid #26362d;
-      border-radius: 10px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.16s ease;
-    }
-    .pill.active {
-      background: var(--matcha-glow);
-      border-color: var(--matcha);
-      color: var(--matcha);
-    }
-    .primary-btn {
-      width: 100%;
-      padding: 13px;
-      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
-      color: #05200e;
-      border: none;
-      border-radius: 12px;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.15s;
-    }
-    .primary-btn:active:not(:disabled) { transform: scale(0.99); }
-    .primary-btn:disabled {
-      background: #1f2b24;
-      color: #5d7064;
-      cursor: not-allowed;
-    }
-    .progress-wrap {
-      display: none;
-      margin-top: 12px;
-      background: #090d0b;
-      border: 1px solid #1e2b23;
-      border-radius: 999px;
-      height: 10px;
-      overflow: hidden;
-    }
-    .progress-wrap.visible { display: block; }
-    .progress-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--matcha-dark), var(--matcha));
-      transition: width 0.15s ease;
-    }
-    .status-text {
-      margin-top: 9px;
-      font-size: 12px;
-      text-align: center;
-      color: var(--muted);
-      min-height: 18px;
-    }
-
-    /* BEFORE / AFTER COMPARISON */
-    .compare-wrap {
-      display: none;
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid #1e2a23;
-    }
-    .compare-wrap.visible { display: block; }
-    .compare-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .zoom-btn {
-      padding: 5px 10px;
-      border-radius: 8px;
-      border: 1px solid #2e4538;
-      background: #101914;
-      color: var(--matcha);
-      font-size: 11.5px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .zoom-btn.active {
-      background: var(--matcha);
-      color: #05200e;
-    }
-    .compare-box {
-      position: relative;
-      width: 100%;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid #2a3b31;
-      background: #070a08;
-      touch-action: none;
-      user-select: none;
-    }
-    .compare-inner {
-      position: relative;
-      width: 100%;
-      transition: transform 0.2s ease;
-      transform-origin: center center;
-    }
-    .compare-box.zoomed .compare-inner {
-      transform: scale(2.4);
-    }
-    .compare-inner img {
-      display: block;
-      width: 100%;
-      height: auto;
-      pointer-events: none;
-    }
-    .compare-before {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-      width: 50%;
-    }
-    .compare-before img {
-      width: 100%;
-      max-width: none;
-      height: 100%;
-      object-fit: cover;
-    }
-    .compare-divider {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 50%;
-      width: 2px;
-      background: var(--matcha);
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.85);
-      pointer-events: none;
-    }
-    .compare-handle {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: var(--matcha);
-      color: #05200e;
-      font-weight: 800;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-      pointer-events: none;
-    }
-    .tag-label {
-      position: absolute;
-      top: 10px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      background: rgba(10, 15, 12, 0.82);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      pointer-events: none;
-      z-index: 2;
-    }
-    .tag-before { left: 10px; color: #d1d5db; }
-    .tag-after { right: 10px; color: var(--matcha); }
-
-    .dl-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .dl-btn {
-      padding: 12px 10px;
-      border-radius: 11px;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      border: 1.5px solid var(--matcha);
-      background: #0d1310;
-      color: var(--text);
-      transition: background 0.18s;
-    }
-    .dl-btn:hover { background: #15241c; }
-    .dl-btn.solid {
-      background: linear-gradient(135deg, var(--matcha), var(--matcha-dark));
-      color: #05200e;
-      border: none;
-    }
-    .footer {
-      margin-top: 18px;
-      text-align: center;
-      font-size: 11px;
-      color: #5c7063;
-    }
+    .error { color: #ff6b81; font-size: 13px; margin-bottom: 12px; display: none; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="badge">● AI ESRGAN Neural Engine</div>
-    <h1>Matcha AI Upscaler</h1>
-    <p class="sub">Rekonstruksi detail foto buram &amp; pecah memakai Neural Network ESRGAN langsung di GPU HP kamu.</p>
-
-    <div class="dropzone" id="dropzone">
-      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
-      <div class="dropzone-title" id="fileLabel">Pilih atau tarik foto ke sini</div>
-      <div class="dropzone-hint">Paling terasa efeknya pada foto buram, screenshot, atau wajah jarak jauh</div>
+  <div class="container">
+    <h2>📹 TikTok Video • Analytics Checker</h2>
+    <div class="input-box">
+      <input type="text" id="urlInput" placeholder="Tempel link video TikTok (vt.tiktok.com / tiktok.com)..." />
+      <button id="checkBtn" onclick="analyzeVideo()">Periksa</button>
     </div>
-
-    <div class="res-bar" id="resBar">
-      <span id="origRes">0 × 0</span>
-      <span class="arrow">→ AI HD →</span>
-      <span id="targetRes">0 × 0 px</span>
-    </div>
-
-    <span class="section-label">Kekuatan AI Upscale</span>
-    <div class="pill-group" id="passGroup">
-      <button type="button" class="pill active" data-pass="1">2x AI HD (Cepat)</button>
-      <button type="button" class="pill" data-pass="2">4x AI Ultra (2x Pass)</button>
-    </div>
-
-    <span class="section-label">Optimasi GPU HP (Anti Force-Close)</span>
-    <div class="pill-group" id="limitGroup">
-      <button type="button" class="pill active" data-limit="720">Mode HP (Max 720p Input)</button>
-      <button type="button" class="pill" data-limit="1280">Resolusi Penuh (Lebih Lama)</button>
-    </div>
-
-    <button type="button" class="primary-btn" id="runBtn" disabled>HD-kan dengan AI ESRGAN</button>
-
-    <div class="progress-wrap" id="progressWrap">
-      <div class="progress-bar" id="progressBar"></div>
-    </div>
-    <div class="status-text" id="statusText">Menyiapkan mesin AI ESRGAN...</div>
-
-    <div class="compare-wrap" id="compareWrap">
-      <div class="compare-head">
-        <span class="section-label" style="margin:0;">Geser Garis (Asli vs AI HD)</span>
-        <button type="button" class="zoom-btn" id="zoomBtn">🔍 Zoom 2.4x</button>
-      </div>
-      <div class="compare-box" id="compareBox">
-        <span class="tag-label tag-before">ASLI</span>
-        <span class="tag-label tag-after" id="afterTag">AI ESRGAN</span>
-        <div class="compare-inner" id="compareInner">
-          <img id="imgAfter" alt="Hasil AI HD" />
-          <div class="compare-before" id="beforeClip">
-            <img id="imgBefore" alt="Foto Asli" />
-          </div>
-          <div class="compare-divider" id="compareLine"></div>
-          <div class="compare-handle" id="compareHandle">⇄</div>
-        </div>
-      </div>
-
-      <div class="dl-grid">
-        <button type="button" class="dl-btn solid" id="dlPngBtn">Unduh PNG (HD Penuh)</button>
-        <button type="button" class="dl-btn" id="dlJpgBtn">Unduh JPG (HQ 96%)</button>
-      </div>
-    </div>
-
-    <div class="footer">Powered by TensorFlow.js &amp; ESRGAN • Berjalan 100% di Browser</div>
+    <div id="errorBox" class="error"></div>
+    <div id="reportBox" class="report"></div>
+    <button id="copyBtn" class="copy-btn" style="display:none;" onclick="copyReport()">Salin Hasil Analisis</button>
   </div>
 
   <script>
-    const fileInput = document.getElementById("fileInput");
-    const dropzone = document.getElementById("dropzone");
-    const fileLabel = document.getElementById("fileLabel");
-    const resBar = document.getElementById("resBar");
-    const origResEl = document.getElementById("origRes");
-    const targetResEl = document.getElementById("targetRes");
-    const runBtn = document.getElementById("runBtn");
-    const progressWrap = document.getElementById("progressWrap");
-    const progressBar = document.getElementById("progressBar");
-    const statusText = document.getElementById("statusText");
+    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
-    const compareWrap = document.getElementById("compareWrap");
-    const compareBox = document.getElementById("compareBox");
-    const beforeClip = document.getElementById("beforeClip");
-    const compareLine = document.getElementById("compareLine");
-    const compareHandle = document.getElementById("compareHandle");
-    const imgBefore = document.getElementById("imgBefore");
-    const imgAfter = document.getElementById("imgAfter");
-    const afterTag = document.getElementById("afterTag");
-    const zoomBtn = document.getElementById("zoomBtn");
+    function countryFlag(code) {
+      if (!code || code.length !== 2) return '🌐';
+      return code.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt()));
+    }
 
-    let upscaler = null;
-    let loadedImage = null;
-    let baseFileName = "photo";
-    let aiPasses = 1;
-    let maxInputSide = 720;
-    let finalBlobPng = null;
-    let finalDataUrl = null;
+    function formatDate(unixSec) {
+      if (!unixSec) return '-';
+      const d = new Date(unixSec * 1000);
+      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
 
-    // Initialize Real AI Model (ESRGAN)
-    window.addEventListener("load", () => {
-      if (typeof Upscaler === "undefined" || typeof DefaultUpscalerJSModel === "undefined") {
-        statusText.textContent = "Gagal memuat model AI (periksa koneksi internet).";
+    function formatDuration(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function detectSource(data) {
+      const w = data.width || 0;
+      const h = data.height || 0;
+      const standardMobile = [540, 576, 720, 1080];
+      const isNonStandardDim = w > 0 && !standardMobile.includes(w);
+      if (data.is_upload_by_web || isNonStandardDim) return 'Browser';
+      return 'TikTok App (Mobile)';
+    }
+
+    async function analyzeVideo() {
+      const url = document.getElementById('urlInput').value.trim();
+      const btn = document.getElementById('checkBtn');
+      const err = document.getElementById('errorBox');
+      const rep = document.getElementById('reportBox');
+      const copyBtn = document.getElementById('copyBtn');
+
+      err.style.display = 'none';
+      if (!url) {
+        err.textContent = 'Masukkan tautan video TikTok terlebih dahulu.';
+        err.style.display = 'block';
         return;
       }
+
+      btn.disabled = true;
+      btn.textContent = 'Memeriksa...';
+
       try {
-        upscaler = new Upscaler({ model: DefaultUpscalerJSModel });
-        statusText.textContent = "Model AI ESRGAN siap. Pilih foto untuk di-HD-kan.";
+        const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`);
+        const json = await res.json();
+
+        if (json.code !== 0 || !json.data) {
+          throw new Error(json.msg || 'Gagal mengambil metadata video. Pastikan video bersifat publik.');
+        }
+
+        const d = json.data;
+        const duration = d.duration || 1;
+        const width = d.width || 576;
+        const height = d.height || 1024;
+        const shortSide = Math.min(width, height);
+        const fps = d.fps || (d.hd_size && d.size && d.hd_size > d.size * 1.4 ? 60 : 30);
+
+        const hdBytes = d.hd_size || d.size || 0;
+        const sdBytes = d.size || hdBytes;
+        const hdMB = (hdBytes / (1024 * 1024)).toFixed(1);
+        const sdMB = (sdBytes / (1024 * 1024)).toFixed(1);
+        const hdMbps = ((hdBytes * 8) / (duration * 1000000)).toFixed(1);
+        const sdMbps = ((sdBytes * 8) / (duration * 1000000)).toFixed(1);
+
+        const regionCode = (d.region || 'ID').toUpperCase();
+        let countryLabel = regionCode;
+        try { countryLabel = regionNames.of(regionCode); } catch (e) {}
+
+        const source = detectSource(d);
+        const shadowBan = (d.is_prohibited || d.status === 10222) ? 'Yes (Restricted)' : 'No';
+        const vqScore = d.vq_score !== undefined ? d.vq_score : 0;
+        const musicTitle = d.music_info?.title || 'original sound';
+        const musicAuthor = d.music_info?.author || d.author?.unique_id || '-';
+
+        const output =
+`📹 VIDEO • ANALYTICS
+
+🎵 ${d.author?.nickname || '-'}  🗓 ${formatDate(d.create_time)}
+${d.title || '(Tanpa caption)'}
+🎵 ${musicTitle} - ${musicAuthor} • ${formatDuration(duration)}
+
+📊 Statistics
+  • 👁 ${(d.play_count || 0).toLocaleString('en-US')} Views
+  • ❤️ ${(d.digg_count || 0).toLocaleString('en-US')} Likes
+  • 💬 ${(d.comment_count || 0).toLocaleString('en-US')} Comments
+  • ⭐️ ${(d.collect_count || 0).toLocaleString('en-US')} Favorites
+  • ➡️ ${(d.share_count || 0).toLocaleString('en-US')} Shares
+  • ⬇️ ${(d.download_count || 0).toLocaleString('en-US')} Downloads
+
+ℹ️ Information
+  • 🗂 ID | ${d.id}
+  • 🔗 Source | ${source}
+  • 📍 Region | ${countryFlag(regionCode)} ${countryLabel}
+  • 👻 Shadow ban | ${shadowBan}
+
+⭐️ Quality
+  • 🌐 Browser | ${shortSide}p${fps}
+  • 📱 Phone | ${shortSide}p${fps}
+🌐play_addr 🌐original_720_0
+ ${shortSide}p${fps} • ${hdMbps} Mbps • hevc • ${hdMB} MB
+
+📱play_addr
+ ${shortSide}p${fps} • ${sdMbps} Mbps • hevc • ${sdMB} MB
+ ┃ Original | ${width}x${height}
+ ┃ VQ Score | ${vqScore}`;
+
+        rep.textContent = output;
+        rep.style.display = 'block';
+        copyBtn.style.display = 'inline-block';
       } catch (e) {
-        statusText.textContent = "Browser tidak mendukung WebGL AI: " + e.message;
-      }
-    });
-
-    document.querySelectorAll("#passGroup .pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#passGroup .pill").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        aiPasses = parseInt(btn.dataset.pass, 10);
-        updateDims();
-      });
-    });
-
-    document.querySelectorAll("#limitGroup .pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#limitGroup .pill").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        maxInputSide = parseInt(btn.dataset.limit, 10);
-        updateDims();
-      });
-    });
-
-    function getPreparedInputSize(w, h) {
-      const longest = Math.max(w, h);
-      if (longest <= maxInputSide) return { iw: w, ih: h };
-      const r = maxInputSide / longest;
-      return { iw: Math.round(w * r), ih: Math.round(h * r) };
-    }
-
-    function updateDims() {
-      if (!loadedImage) return;
-      const w = loadedImage.naturalWidth;
-      const h = loadedImage.naturalHeight;
-      const { iw, ih } = getPreparedInputSize(w, h);
-      const mult = aiPasses === 2 ? 4 : 2;
-      origResEl.textContent = `${w} × ${h}`;
-      targetResEl.textContent = `${iw * mult} × ${ih * mult} px`;
-      resBar.classList.add("visible");
-    }
-
-    function handleFile(file) {
-      if (!file || !file.type.startsWith("image/")) return;
-      baseFileName = file.name.replace(/\.[^/.]+$/, "") || "photo";
-      fileLabel.textContent = file.name;
-      compareWrap.classList.remove("visible");
-      compareBox.classList.remove("zoomed");
-      zoomBtn.classList.remove("active");
-
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        loadedImage = img;
-        imgBefore.src = url;
-        updateDims();
-        if (upscaler) {
-          runBtn.disabled = false;
-          statusText.textContent = "Siap diproses dengan AI ESRGAN.";
-        }
-      };
-      img.src = url;
-    }
-
-    fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
-    dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
-    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-    dropzone.addEventListener("drop", e => {
-      e.preventDefault();
-      dropzone.classList.remove("dragover");
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-
-    function imageToCanvas(img, tw, th) {
-      const c = document.createElement("canvas");
-      c.width = tw;
-      c.height = th;
-      const ctx = c.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, tw, th);
-      return c;
-    }
-
-    function dataUrlToImage(src) {
-      return new Promise((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.onerror = reject;
-        i.src = src;
-      });
-    }
-
-    runBtn.addEventListener("click", async () => {
-      if (!loadedImage || !upscaler) return;
-      runBtn.disabled = true;
-      compareWrap.classList.remove("visible");
-      progressWrap.classList.add("visible");
-      progressBar.style.width = "2%";
-      statusText.textContent = "Memuat bobot AI ESRGAN ke GPU...";
-
-      try {
-        const t0 = performance.now();
-        const { iw, ih } = getPreparedInputSize(loadedImage.naturalWidth, loadedImage.naturalHeight);
-        let currentSource = imageToCanvas(loadedImage, iw, ih);
-
-        // Pass 1: 2x AI Reconstruction
-        let resultSrc = await upscaler.upscale(currentSource, {
-          output: "base64",
-          patchSize: 64,
-          padding: 4,
-          progress: (pct) => {
-            const p = aiPasses === 2 ? Math.round(pct * 50) : Math.round(pct * 100);
-            progressBar.style.width = Math.max(4, p) + "%";
-            statusText.textContent = `AI ESRGAN merekonstruksi detail... ${p}%`;
-          }
-        });
-
-        // Pass 2 (Optional 4x): Second AI pass
-        if (aiPasses === 2) {
-          const pass1Img = await dataUrlToImage(resultSrc);
-          resultSrc = await upscaler.upscale(pass1Img, {
-            output: "base64",
-            patchSize: 64,
-            padding: 4,
-            progress: (pct) => {
-              const p = 50 + Math.round(pct * 50);
-              progressBar.style.width = p + "%";
-              statusText.textContent = `AI ESRGAN tahap 2 (4x Ultra)... ${p}%`;
-            }
-          });
-        }
-
-        finalDataUrl = resultSrc;
-        const finalImg = await dataUrlToImage(resultSrc);
-
-        imgAfter.onload = () => {
-          imgBefore.style.width = compareBox.clientWidth + "px";
-          setSliderPercent(50);
-        };
-        imgAfter.src = resultSrc;
-
-        const mult = aiPasses === 2 ? 4 : 2;
-        afterTag.textContent = `AI ${mult}X (${finalImg.naturalWidth}×${finalImg.naturalHeight})`;
-        compareWrap.classList.add("visible");
-
-        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-        progressBar.style.width = "100%";
-        statusText.textContent = `Selesai dalam ${elapsed} detik (${finalImg.naturalWidth} × ${finalImg.naturalHeight} px)`;
-      } catch (err) {
-        statusText.textContent = "Error AI GPU: " + (err.message || err);
+        err.textContent = 'Error: ' + e.message;
+        err.style.display = 'block';
       } finally {
-        runBtn.disabled = false;
+        btn.disabled = false;
+        btn.textContent = 'Periksa';
       }
-    });
-
-    zoomBtn.addEventListener("click", () => {
-      compareBox.classList.toggle("zoomed");
-      zoomBtn.classList.toggle("active");
-    });
-
-    function setSliderPercent(pct) {
-      const clamped = Math.max(0, Math.min(100, pct));
-      beforeClip.style.width = clamped + "%";
-      compareLine.style.left = clamped + "%";
-      compareHandle.style.left = clamped + "%";
-      imgBefore.style.width = compareBox.clientWidth + "px";
     }
 
-    function handleMove(clientX) {
-      const rect = compareBox.getBoundingClientRect();
-      if (!rect.width) return;
-      const pct = ((clientX - rect.left) / rect.width) * 100;
-      setSliderPercent(pct);
+    function copyReport() {
+      navigator.clipboard.writeText(document.getElementById('reportBox').textContent);
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'Tersalin!';
+      setTimeout(() => btn.textContent = 'Salin Hasil Analisis', 1500);
     }
-
-    let dragging = false;
-    compareBox.addEventListener("mousedown", e => { dragging = true; handleMove(e.clientX); });
-    window.addEventListener("mousemove", e => { if (dragging) handleMove(e.clientX); });
-    window.addEventListener("mouseup", () => { dragging = false; });
-
-    compareBox.addEventListener("touchstart", e => {
-      dragging = true;
-      if (e.touches.length) handleMove(e.touches[0].clientX);
-    }, { passive: true });
-    compareBox.addEventListener("touchmove", e => {
-      if (dragging && e.touches.length) handleMove(e.touches[0].clientX);
-    }, { passive: true });
-    compareBox.addEventListener("touchend", () => { dragging = false; });
-    window.addEventListener("resize", () => {
-      if (compareWrap.classList.contains("visible")) {
-        imgBefore.style.width = compareBox.clientWidth + "px";
-      }
-    });
-
-    document.getElementById("dlPngBtn").addEventListener("click", () => {
-      if (!finalDataUrl) return;
-      const mult = aiPasses === 2 ? 4 : 2;
-      const a = document.createElement("a");
-      a.href = finalDataUrl;
-      a.download = `${baseFileName}_matcha_AI_${mult}x.png`;
-      a.click();
-    });
-
-    document.getElementById("dlJpgBtn").addEventListener("click", async () => {
-      if (!finalDataUrl) return;
-      const img = await dataUrlToImage(finalDataUrl);
-      const c = imageToCanvas(img, img.naturalWidth, img.naturalHeight);
-      const mult = aiPasses === 2 ? 4 : 2;
-      c.toBlob(blob => {
-        if (!blob) return;
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${baseFileName}_matcha_AI_${mult}x.jpg`;
-        a.click();
-      }, "image/jpeg", 0.96);
-    });
   </script>
 </body>
 </html>
